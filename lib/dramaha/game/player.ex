@@ -1,13 +1,21 @@
 defmodule Dramaha.Game.Player do
   alias Dramaha.Game.Card, as: Card
 
+  @doc """
+    bet => number of chips committed during the current betting round.
+    raise_by => number of chips the player raised the previous player by (used for min raise calculations)
+    stack => Current player stack, always is decremented when more chips are committed.
+    committed => number of chips committed so far during the full hand
+                 (useful for determining which pots a player is eligible for at showdown)
+  """
   @enforce_keys [:name, :stack]
-  defstruct name: "", stack: 0, bet: 0, dealt_in: false, holding: nil
+  defstruct name: "", stack: 0, bet: 0, raise_by: 0, committed: 0, dealt_in: false, holding: nil
 
   @type t() :: %__MODULE__{
           name: String.t(),
           stack: integer(),
           bet: integer(),
+          raise_by: integer(),
           dealt_in: boolean(),
           holding: Card.holding() | nil
         }
@@ -26,4 +34,8 @@ defmodule Dramaha.Game.Player do
       _ -> false
     end
   end
+
+  @spec all_in?(t()) :: boolean()
+  def all_in?(%{stack: 0}), do: true
+  def all_in?(_), do: false
 end
