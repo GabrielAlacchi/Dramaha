@@ -36,7 +36,7 @@ defmodule Dramaha.Game do
           pot: pot,
           last_aggressor: bb_player,
           last_caller: bb_player,
-          min_bet: bet_config.big_blind,
+          bet_config: bet_config,
           # Dealer starts
           player_turn: 1
         }
@@ -50,7 +50,7 @@ defmodule Dramaha.Game do
           pot: pot,
           last_aggressor: bb_player,
           last_caller: bb_player,
-          min_bet: bet_config.big_blind,
+          bet_config: bet_config,
           # Left of BB starts.
           player_turn: 2
         }
@@ -61,36 +61,33 @@ defmodule Dramaha.Game do
   end
 
   @spec play_action(State.t(), Actions.action()) ::
-          {:ok, State.t()}
-          | {:game_over, State.t()}
-          | {:invalid_action, Actions.action()}
+          {:ok, State.t()} | {:invalid_action, Actions.action()}
   def play_action(state, action) do
     available_actions = Actions.available_actions(state)
 
-    if action_allowed?(action, available_actions) do
+    if !action_allowed?(action, available_actions) do
       {:invalid_action, action}
     else
       next_state = Actions.execute_action(state, action)
 
       cond do
+        !street_action?(action) -> {:ok, next_state}
         hand_over?(next_state) -> {:ok, close_hand(next_state)}
         action_closed?(next_state) -> {:ok, close_betting_round(next_state)}
+        true -> {:ok, next_state}
       end
     end
   end
+
+  @spec street_action?(Action.action()) :: boolean()
+  defp street_action?(:deal), do: false
+  defp street_action?(_), do: true
 
   @spec close_betting_round(State.t()) :: State.t()
   defp close_betting_round(%{players: players, pot: pot, street: street} = state) do
     {updated_pot, updated_players} = Pot.gather_bets(pot, players)
 
-    next_state = %{
-      state
-      | players: updated_players,
-        pot: updated_pot,
-        player_turn: 0,
-        last_aggressor: nil,
-        last_caller: nil
-    }
+    next_state = State.start_new_round(%{state | players: updated_players, pot: updated_pot})
 
     cond do
       street == :river -> %{next_state | awaiting_deal: false, street: :showdown}
@@ -161,25 +158,34 @@ defmodule Dramaha.Game do
   end
 
   @spec action_closed?(State.t()) :: boolean()
-  defp action_closed?(%{players: players, player_turn: player_turn}) do
+  # Non preflop there are no blinds so the logic is different
+  defp action_closed?(%{players: players, player_turn: player_turn} = state) do
     # If all bets are 0 then the action is closed if and only if
-    # we're back to player 0.
+    # we're back to the first player
     if Enum.all?(players, &(&1.bet == 0)) do
-      player_turn == 0
+      player_turn == State.first_player_for_round(state)
     else
       # Check for non folded players to see if they're either all in (or matching the largest bet)
       still_in = Enum.filter(players, &(!Player.folded?(&1)))
       largest_bet = Enum.map(still_in, & &1.bet) |> Enum.max()
 
-      Enum.all?(still_in, &(&1.stack == 0 || &1.bet == largest_bet))
+      all_bets_matched = Enum.all?(still_in, &(&1.stack == 0 || &1.bet == largest_bet))
+
+      cond do
+        # We have a limped pot preflop, has the big blind exercised his option?
+        state.street == :preflop && largest_bet == state.bet_config.big_blind ->
+          current_player = Enum.at(state.players, state.player_turn)
+          all_bets_matched && !current_player.has_option
+
+        # In a normal round (non limped pre) the round is over all players have matched the largest
+        # bet or gone all in under it.
+        true ->
+          all_bets_matched
+      end
     end
   end
 
   @spec action_allowed?(Actions.action(), list(Actions.action())) :: boolean()
-  defp action_allowed?(:fold, available_actions), do: Enum.member?(available_actions, :fold)
-  defp action_allowed?(:check, available_actions), do: Enum.member?(available_actions, :check)
-  defp action_allowed?(:call, available_actions), do: Enum.member?(available_actions, :call)
-
   defp action_allowed?({:bet, size}, available_actions) do
     allowed_bets = Enum.filter(available_actions, &Actions.bet?(&1))
 
@@ -190,11 +196,37 @@ defmodule Dramaha.Game do
     end
   end
 
+  defp action_allowed?({:draw, discards}, available_actions) do
+    cond do
+      Enum.member?(available_actions, {:draw, []}) ->
+        length(discards) <= 5
+
+      true ->
+        false
+    end
+  end
+
+  defp action_allowed?(atom, available_actions), do: Enum.member?(available_actions, atom)
+
   @spec post_blinds(Player.t(), Player.t(), Actions.Config.t()) ::
           {Player.t(), Player.t(), Pot.t()}
   defp post_blinds(sb_player, bb_player, %{small_blind: sb, big_blind: bb}) do
     {sb_player, pot, _} = Actions.place_bet(sb_player, nil, nil, sb, %Pot{})
     {bb_player, pot, _} = Actions.place_bet(bb_player, nil, nil, bb, pot)
-    {sb_player, bb_player, pot}
+
+    # Give option to bb (and sb depending on the situation)
+    cond do
+      sb == bb ->
+        # Both SB and BB have option assuming they weren't forced all in
+        {give_option(sb_player), give_option(bb_player), pot}
+
+      true ->
+        {sb_player, give_option(bb_player), pot}
+    end
   end
+
+  @spec give_option(Player.t()) :: Player.t()
+  # Give option to the player unless they're all in
+  defp give_option(%{stack: 0} = player), do: player
+  defp give_option(player), do: %{player | has_option: true}
 end

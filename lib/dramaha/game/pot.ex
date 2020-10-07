@@ -6,6 +6,7 @@ defmodule Dramaha.Game.Pot do
   # and the second represents the actual value of the pot.
   @type pot_entry() :: {integer, integer}
 
+  @spec __struct__ :: Dramaha.Game.Pot.t()
   @doc """
   full_pot is the total number of chips in the entirety of the pot including side pots,
   but not including chips that have been committed during the current betting street.
@@ -33,7 +34,15 @@ defmodule Dramaha.Game.Pot do
     updated_pot = %{pot | full_pot: full_pot + committed, committed: 0}
 
     pot_and_sidepots = update_pot_entry(current_pot_entry, players)
-    pot_entries = pot_and_sidepots ++ other_pots
+
+    # Due to the nature of the recursive algorithm's base case, we may end up with side pots of size 0.
+    # This is by design, we simply need to just prune out the first pot if it's of size 0
+    # It's impossible that this gets rid of the main pot because there's always some chips in the main pot.
+    pot_entries =
+      case pot_and_sidepots do
+        [{_, 0} | other_sidepots] -> other_sidepots ++ other_pots
+        pot_and_sidepots -> pot_and_sidepots ++ other_pots
+      end
 
     {
       %{updated_pot | pots: pot_entries},
@@ -87,12 +96,18 @@ defmodule Dramaha.Game.Pot do
 
   @spec update_pot_entry(pot_entry(), list(Player.t())) :: list(pot_entry())
   defp update_pot_entry({required_commit, pot_size}, players) do
+    # Find the smallest bet made by any non-folded player
+    # (essentially what is the smallest all in)
     min_committed_bet =
-      Enum.map(players, & &1.bet) |> Enum.filter(&(&1 > 0)) |> Enum.min(fn -> 0 end)
+      Enum.filter(players, &(&1.bet > 0 && !Player.folded?(&1)))
+      |> Enum.map(& &1.bet)
+      |> Enum.min(fn -> 0 end)
 
+    # We still need to keep track of folded players in our calculations because
+    # they may still contribute to the gathering of the pot.
     cond do
       min_committed_bet == 0 ->
-        []
+        [{required_commit, pot_size}]
 
       true ->
         {updated_players, total_chips} = match_smallest_bet(players, min_committed_bet)

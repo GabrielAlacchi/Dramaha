@@ -1,4 +1,5 @@
 defmodule Dramaha.Game.State do
+  alias Dramaha.Game.Actions, as: Actions
   alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
@@ -21,7 +22,7 @@ defmodule Dramaha.Game.State do
           | :showdown
           | :folded
 
-  @enforce_keys [:deck, :players, :pot, :player_turn, :min_bet]
+  @enforce_keys [:deck, :players, :pot, :player_turn, :bet_config]
   defstruct deck: Deck.full(),
             players: [],
             last_aggressor: nil,
@@ -29,7 +30,7 @@ defmodule Dramaha.Game.State do
             street: :preflop,
             awaiting_deal: false,
             board: [],
-            min_bet: 0,
+            bet_config: %Actions.Config{small_blind: 0, big_blind: 0},
             pot: %Pot{},
             player_turn: 0
 
@@ -38,10 +39,10 @@ defmodule Dramaha.Game.State do
           players: list(Player.t()),
           last_aggressor: Player.t() | nil,
           last_caller: Player.t() | nil,
-          min_bet: integer(),
           street: street(),
           awaiting_deal: boolean(),
           board: list(Card.t()),
+          bet_config: Actions.Config.t(),
           pot: Pot.t(),
           player_turn: integer()
         }
@@ -57,6 +58,37 @@ defmodule Dramaha.Game.State do
   def current_player(state) do
     Enum.at(state.players, state.player_turn)
   end
+
+  @spec start_new_round(t()) :: t()
+  def start_new_round(state) do
+    %{state | player_turn: first_player_for_round(state), last_aggressor: nil, last_caller: nil}
+  end
+
+  @spec first_player_for_round(t()) :: integer()
+  def first_player_for_round(%{players: players}) do
+    still_in =
+      Enum.with_index(players) |> Enum.filter(fn {player, _} -> !Player.folded?(player) end)
+
+    case still_in do
+      [{_, i} | _] ->
+        i
+
+      _ ->
+        0
+    end
+  end
+
+  @spec big_blind_player(t()) :: integer()
+  # In a heads up match the first player is the BB
+  def big_blind_player(%{players: [_, _]}), do: 0
+  # In a normal match the 2nd player is the BB
+  def big_blind_player(_), do: 1
+
+  @spec small_blind_player(t()) :: integer()
+  # In a heads up match the first player is the SB
+  def small_blind_player(%{players: [_, _]}), do: 1
+  # In a normal match the 1st player is the SB
+  def small_blind_player(_), do: 0
 
   @spec finished?(t()) :: boolean()
   def finished?(%{street: :showdown}), do: true

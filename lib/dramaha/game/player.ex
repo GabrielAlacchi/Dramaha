@@ -7,17 +7,29 @@ defmodule Dramaha.Game.Player do
     stack => Current player stack, always is decremented when more chips are committed.
     committed => number of chips committed so far during the full hand
                  (useful for determining which pots a player is eligible for at showdown)
+    keep_decision => Does the player need to decide whether to keep or throw in a draw 1 scenario?
   """
   @enforce_keys [:name, :stack]
-  defstruct name: "", stack: 0, bet: 0, raise_by: 0, committed: 0, dealt_in: false, holding: nil
+  defstruct name: "",
+            stack: 0,
+            bet: 0,
+            raise_by: 0,
+            committed: 0,
+            dealt_in: false,
+            holding: nil,
+            faceup_card: nil,
+            has_option: false
 
   @type t() :: %__MODULE__{
           name: String.t(),
           stack: integer(),
           bet: integer(),
           raise_by: integer(),
+          committed: integer(),
           dealt_in: boolean(),
-          holding: Card.holding() | nil
+          holding: Card.holding() | nil,
+          faceup_card: Card.t() | nil,
+          has_option: boolean()
         }
 
   @spec deal_in(t(), Card.holding()) :: t()
