@@ -4,6 +4,7 @@ defmodule Dramaha.Game.State do
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
   alias Dramaha.Game.Pot, as: Pot
+  alias Dramaha.Game.Showdown, as: Showdown
 
   # :folded represents when everyone folded so the hand is over before showdown
   @type street() ::
@@ -32,7 +33,8 @@ defmodule Dramaha.Game.State do
             board: [],
             bet_config: %Actions.Config{small_blind: 0, big_blind: 0},
             pot: %Pot{},
-            player_turn: 0
+            player_turn: 0,
+            showdowns: []
 
   @type t() :: %__MODULE__{
           deck: Deck.t(),
@@ -44,7 +46,8 @@ defmodule Dramaha.Game.State do
           board: list(Card.t()),
           bet_config: Actions.Config.t(),
           pot: Pot.t(),
-          player_turn: integer()
+          player_turn: integer(),
+          showdowns: list(Showdown.t())
         }
 
   @spec next_street(street()) :: street()

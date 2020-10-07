@@ -1,6 +1,9 @@
 defmodule Dramaha.Game.Player do
   alias Dramaha.Game.Card, as: Card
+  alias Dramaha.Game.Showdown, as: Showdown
+  alias Dramaha.Game.Poker, as: Poker
 
+  @spec __struct__ :: Dramaha.Game.Player.t()
   @doc """
     bet => number of chips committed during the current betting round.
     raise_by => number of chips the player raised the previous player by (used for min raise calculations)
@@ -16,9 +19,14 @@ defmodule Dramaha.Game.Player do
             raise_by: 0,
             committed: 0,
             dealt_in: false,
-            holding: nil,
             faceup_card: nil,
-            has_option: false
+            has_option: false,
+
+            # We'll keep track of in hand and board hand as the hand progresses.
+            holding: nil,
+            hand: {:high_card, 0},
+            board_holding: nil,
+            board_hand: {:high_card, 0}
 
   @type t() :: %__MODULE__{
           name: String.t(),
@@ -28,13 +36,22 @@ defmodule Dramaha.Game.Player do
           committed: integer(),
           dealt_in: boolean(),
           holding: Card.holding() | nil,
+          hand: Poker.poker_hand(),
           faceup_card: Card.t() | nil,
-          has_option: boolean()
+          has_option: boolean(),
+          board_holding: Card.holding() | nil,
+          board_hand: Poker.poker_hand()
         }
 
   @spec deal_in(t(), Card.holding()) :: t()
   def deal_in(player, holding) do
-    %{player | dealt_in: true, holding: holding}
+    %{player | dealt_in: true, holding: holding, hand: Poker.evaluate(holding)}
+  end
+
+  @spec update_board_hand(t(), list(Card.t())) :: t()
+  def update_board_hand(player, board) do
+    {board_holding, board_hand} = Showdown.best_hand_on_board(player.holding, board)
+    %{player | board_holding: board_holding, board_hand: board_hand}
   end
 
   @spec folded?(t()) :: boolean

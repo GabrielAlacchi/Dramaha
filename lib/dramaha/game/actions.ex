@@ -2,6 +2,7 @@ defmodule Dramaha.Game.Actions do
   alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
+  alias Dramaha.Game.Poker, as: Poker
   alias Dramaha.Game.Pot, as: Pot
   alias Dramaha.Game.State, as: State
 
@@ -178,11 +179,20 @@ defmodule Dramaha.Game.Actions do
           {deck, []}
       end
 
+    updated_board = board ++ board_cards
+
+    # Update board hand evaluation for every player that is still in the hold
+    updated_players =
+      Enum.map(state.players, fn player ->
+        Player.update_board_hand(player, updated_board)
+      end)
+
     %{
       state
       | awaiting_deal: false,
+        players: updated_players,
         deck: deck,
-        board: board ++ board_cards,
+        board: updated_board,
         street: State.next_street(street)
     }
   end
@@ -194,19 +204,19 @@ defmodule Dramaha.Game.Actions do
 
   # Draw 1 scenario (card will be faceup and player can keep or discard again)
   def execute_action(%{street: :draw, player_turn: idx} = state, {:draw, [discard]}) do
-    {deck, new_players, [faceup]} = draw_cards(state.deck, state.players, idx, [discard])
+    {state, [faceup]} = draw_cards(state, [discard])
 
-    new_players = List.update_at(new_players, idx, &%{&1 | faceup_card: faceup})
+    new_players = List.update_at(state.players, idx, &%{&1 | faceup_card: faceup})
 
     # Don't change whose turn it is
-    %{state | players: new_players, deck: deck}
+    %{state | players: new_players}
   end
 
   # Draw implementation for (discard > 1 card)
-  def execute_action(%{street: :draw, deck: deck, player_turn: idx} = state, {:draw, discards}) do
-    {deck, new_players, _} = draw_cards(deck, state.players, idx, discards)
+  def execute_action(%{street: :draw, player_turn: idx} = state, {:draw, discards}) do
+    {state, _} = draw_cards(state, discards)
 
-    %{state | players: new_players, deck: deck, player_turn: find_next_player(new_players, idx)}
+    %{state | player_turn: find_next_player(state.players, idx)}
   end
 
   # If we keep the 1 card discard there is no change to the state other than to choose the next player
@@ -219,25 +229,34 @@ defmodule Dramaha.Game.Actions do
     %{faceup_card: faceup} = Enum.at(players, idx)
     new_players = List.replace_at(players, idx, &%{&1 | faceup_card: nil})
 
-    {deck, new_players, _} = draw_cards(state.deck, new_players, idx, [faceup])
-    %{state | deck: deck, players: new_players, player_turn: find_next_player(new_players, idx)}
+    {state, _} = draw_cards(%{state | players: new_players}, [faceup])
+    %{state | player_turn: find_next_player(state.players, idx)}
   end
 
-  @spec draw_cards(Deck.t(), list(Player.t()), integer(), list(Card.t())) ::
-          {Deck.t(), list(Player.t()), list(Card.t())}
-  defp draw_cards(deck, players, idx, discards) do
-    {deck, replaced_cards} = Deck.draw(deck, length(discards))
+  @spec draw_cards(State.t(), list(Card.t())) :: {State.t(), list(Card.t())}
+  defp draw_cards(state, discards) do
+    {deck, replaced_cards} = Deck.draw(state.deck, length(discards))
 
     new_players =
-      List.update_at(players, idx, fn %{holding: holding} = player ->
+      List.update_at(state.players, state.player_turn, fn %{holding: holding} = player ->
         holding_list = Tuple.to_list(holding)
-        filter_discards = Enum.filter(holding_list, &(!Enum.member?(discards, &1)))
-        new_holding = Card.list_to_holding(filter_discards ++ replaced_cards)
 
-        %{player | holding: new_holding}
+        filter_discards = Enum.filter(holding_list, &(!Enum.member?(discards, &1)))
+        {:ok, new_holding} = Card.list_to_holding(filter_discards ++ replaced_cards)
+
+        player_updated_in_hand = %{
+          player
+          | holding: new_holding,
+            hand: Poker.evaluate(new_holding)
+        }
+
+        Player.update_board_hand(player_updated_in_hand, state.board)
       end)
 
-    {deck, new_players, replaced_cards}
+    {
+      %{state | deck: deck, players: new_players},
+      replaced_cards
+    }
   end
 
   @spec find_next_player(list(Player.t()), integer()) :: integer()

@@ -4,6 +4,7 @@ defmodule Dramaha.Game do
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
   alias Dramaha.Game.Pot, as: Pot
+  alias Dramaha.Game.Showdown, as: Showdown
   alias Dramaha.Game.State, as: State
 
   @doc """
@@ -83,6 +84,34 @@ defmodule Dramaha.Game do
       end
     end
   end
+
+  @spec handle_next_showdown(State.t()) :: {:ok, State.t()} | :not_at_showdown | :no_more_pots
+  def handle_next_showdown(%{street: :showdown} = state) do
+    if Enum.empty?(state.pot.pots) do
+      :no_more_pots
+    else
+      {pot, pot_size, eligible_idxs} = Pot.pop_showdown(state.pot, state.players)
+
+      eligible_players = Enum.map(eligible_idxs, fn idx -> {idx, Enum.at(state.players, idx)} end)
+      showdown = Showdown.evaluate_full_showdown(eligible_players, pot_size)
+
+      # Give chips to the winners
+      updated_winners =
+        Enum.zip(eligible_idxs, showdown.won_chips)
+        |> Enum.reduce(state.players, fn {idx, won_chips}, players_list ->
+          List.update_at(players_list, idx, fn player ->
+            %{player | stack: player.stack + won_chips}
+          end)
+        end)
+
+      {
+        :ok,
+        %{state | showdowns: state.showdowns ++ [showdown], players: updated_winners, pot: pot}
+      }
+    end
+  end
+
+  def handle_next_showdown(_), do: :not_at_showdown
 
   @spec street_action?(Action.action()) :: boolean()
   defp street_action?(:deal), do: false

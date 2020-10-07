@@ -51,20 +51,28 @@ defmodule Dramaha.Game.Pot do
   end
 
   @doc """
-  Pops out the next pot that needs to go to showdown and returns a list of
+  Pops out the next pot that needs to go to showdown and returns a list of indexes of
   players eligible to compete for this pot at showdown.
   """
-  @spec pop_showdown(t(), list(Player.t())) :: {t(), integer(), list(Player.t())}
+  @spec pop_showdown(t(), list(Player.t())) :: {t(), integer(), list(integer())}
   def pop_showdown(pot, players) do
     %{pots: [next_pot | rest]} = pot
     {commit_requirement, pot_size} = next_pot
+
+    players_with_index = Enum.with_index(players)
+
+    eligible_indices =
+      Enum.filter(players_with_index, fn {player, _} ->
+        !Player.folded?(player) && player.committed >= commit_requirement
+      end)
+      |> Enum.map(fn {_, i} -> i end)
 
     {
       # remove the next_pot and subtract its size from the full pot
       %{pot | full_pot: pot.full_pot - pot_size, pots: [rest]},
       # Size of the side pot that's being competed for
       pot_size,
-      Enum.filter(players, &(!Player.folded?(&1) && &1.committed >= commit_requirement))
+      eligible_indices
     }
   end
 
