@@ -40,10 +40,10 @@ defmodule Dramaha.Game.Card do
     end
   end
 
-  @spec list_to_holding(list(card)) :: holding | :error
+  @spec list_to_holding(list(card)) :: {:ok, holding} | :error
   def list_to_holding(cards) do
     case sort_card_list(cards) do
-      [c1, c2, c3, c4, c5] -> {c1, c2, c3, c4, c5}
+      [c1, c2, c3, c4, c5] -> {:ok, {c1, c2, c3, c4, c5}}
       _ -> :error
     end
   end

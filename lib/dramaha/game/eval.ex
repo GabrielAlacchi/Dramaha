@@ -70,7 +70,7 @@ defmodule Dramaha.Game.Eval do
     Itertools.product(hole_cards, board_cards)
     |> Enum.reduce(initial_acc, fn {[h1, h2], [b1, b2, b3]},
                                    {best_holding_so_far, best_hand_so_far} ->
-      current_holding = Card.list_to_holding([h1, h2, b1, b2, b3])
+      {:ok, current_holding} = Card.list_to_holding([h1, h2, b1, b2, b3])
       current_hand = Poker.evaluate(current_holding)
 
       case {Poker.hand_strength_ordinal(best_hand_so_far),

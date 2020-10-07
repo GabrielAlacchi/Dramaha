@@ -1,5 +1,6 @@
 defmodule Dramaha.Game do
   alias Dramaha.Game.Actions, as: Actions
+  alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
   alias Dramaha.Game.Pot, as: Pot
@@ -19,8 +20,12 @@ defmodule Dramaha.Game do
       Enum.reduce(players, initial_deal, fn player, {players, current_deck} ->
         {new_deck, drawn_holding} = Deck.draw(current_deck, 5)
 
+        # This should never error out since we safely drew 5 cards. If it does we'd like to get
+        # a process crashing exception to know about it.
+        {:ok, holding_tuple} = Card.list_to_holding(drawn_holding)
+
         {
-          players ++ [Player.deal_in(player, List.to_tuple(drawn_holding))],
+          players ++ [Player.deal_in(player, holding_tuple)],
           new_deck
         }
       end)
