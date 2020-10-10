@@ -3,6 +3,8 @@ defmodule Dramaha.Game.Player do
   alias Dramaha.Game.Showdown, as: Showdown
   alias Dramaha.Game.Poker, as: Poker
 
+  @type seat() :: 1 | 2 | 3 | 4 | 5 | 6
+
   @spec __struct__ :: Dramaha.Game.Player.t()
   @doc """
     bet => number of chips committed during the current betting round.
@@ -12,9 +14,12 @@ defmodule Dramaha.Game.Player do
                  (useful for determining which pots a player is eligible for at showdown)
     keep_decision => Does the player need to decide whether to keep or throw in a draw 1 scenario?
   """
-  @enforce_keys [:name, :stack]
-  defstruct name: "",
+  @enforce_keys [:player_id, :name, :stack, :seat, :sitting_out]
+  defstruct player_id: -1,
+            name: "",
             stack: 0,
+            seat: 1,
+            sitting_out: false,
             bet: 0,
             raise_by: 0,
             committed: 0,
@@ -29,8 +34,11 @@ defmodule Dramaha.Game.Player do
             board_hand: {:high_card, 0}
 
   @type t() :: %__MODULE__{
+          player_id: integer(),
           name: String.t(),
           stack: integer(),
+          seat: seat(),
+          sitting_out: boolean(),
           bet: integer(),
           raise_by: integer(),
           committed: integer(),

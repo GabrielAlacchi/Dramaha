@@ -14,9 +14,13 @@ defmodule Dramaha.Application do
       # Start the PubSub system
       {Phoenix.PubSub, name: Dramaha.PubSub},
       # Start the Endpoint (http/https)
-      DramahaWeb.Endpoint
+      DramahaWeb.Endpoint,
       # Start a worker by calling: Dramaha.Worker.start_link(arg)
       # {Dramaha.Worker, arg}
+
+      # Registry for finding session GenServer processes by session UUID
+      {Registry, keys: :unique, name: Dramaha.PlayRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Dramaha.PlaySupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

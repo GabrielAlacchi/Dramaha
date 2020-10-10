@@ -13,9 +13,14 @@ defmodule Dramaha.Sessions do
   def get_session_by_uuid(uuid), do: Repo.get_by(Session, uuid: uuid)
 
   def create_session(attrs) do
-    %Session{uuid: UUID.uuid4()}
-    |> Session.changeset(attrs)
-    |> Repo.insert()
+    session =
+      %Session{uuid: UUID.uuid4()}
+      |> Session.changeset(attrs)
+      |> Repo.insert()
+
+    configure_gameserver(session)
+
+    session
   end
 
   def change_session(%Session{} = session, attrs \\ %{}) do
@@ -72,5 +77,47 @@ defmodule Dramaha.Sessions do
 
   def subscribe(%{id: id}) do
     Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{id}")
+  end
+
+  @spec call_gameserver(Dramaha.Sessions.Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
+  def call_gameserver(%{uuid: uuid} = session, message) do
+    # The UUID identifies the play process for the session
+    pid =
+      case Registry.lookup(Dramaha.PlayRegistry, uuid) do
+        # If the gameserver is down (maybe we restarted the elixir server) we reconfigure the game session,
+        # unique keys in the registry prevents a race condition.
+        [] ->
+          configure_gameserver(session)
+
+        [{pid, _}] ->
+          pid
+      end
+
+    GenServer.call(pid, message)
+  end
+
+  @spec configure_gameserver(Dramaha.Sessions.Session.t()) :: pid()
+  defp configure_gameserver(session) do
+    config = %Dramaha.Game.Actions.Config{
+      small_blind: session.small_blind,
+      big_blind: session.big_blind
+    }
+
+    case DynamicSupervisor.start_child(
+           Dramaha.PlaySupervisor,
+           {Dramaha.Play, name: via_registry(session.uuid)}
+         ) do
+      {:ok, pid} ->
+        GenServer.call(pid, {:configure_session, config})
+        pid
+
+      {:error, {:already_started, pid}} ->
+        pid
+    end
+  end
+
+  @spec via_registry(String.t()) :: {:via, Registry, {Dramaha.PlayRegistry, String.t()}}
+  defp via_registry(uuid) do
+    {:via, Registry, {Dramaha.PlayRegistry, uuid}}
   end
 end
