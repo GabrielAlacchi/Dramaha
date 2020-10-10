@@ -1,0 +1,16 @@
+<%= f = form_for @changeset, "/sessions/#{@session.uuid}/register",
+    id: "join-form",
+    phx_target: @myself,
+    phx_change: "validate" %>
+
+    <%= label f, :display_name, "Display Name" %>
+    <%= text_input f, :display_name %>
+    <%= error_tag f, :display_name %>
+
+    <%= label f, :current_stack, "Starting Stack" %>
+    <span>You can buy in anywhere between <%= @session.min_buy_in %> and <%= @session.max_buy_in %></span>
+    <%= number_input f, :current_stack %>
+    <%= error_tag f, :current_stack %>
+
+    <%= submit "Create", phx_disable_with: "Creating..." %>
+</form>

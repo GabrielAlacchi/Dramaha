@@ -18,6 +18,11 @@ defmodule DramahaWeb.Router do
     pipe_through :browser
 
     live "/", PageLive, :index
+    live "/sessions/new", SessionsLive.New
+    live "/sessions/:session_uuid/join", SessionsLive.Join
+    live "/sessions/:session_uuid/play", PlayLive.Play
+
+    post "/sessions/:session_uuid/register", RegistrationController, :register
   end
 
   # Other scopes may use custom stacks.

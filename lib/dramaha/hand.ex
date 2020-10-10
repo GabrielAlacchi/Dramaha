@@ -1,4 +1,4 @@
-defmodule Dramaha.Game do
+defmodule Dramaha.Hand do
   alias Dramaha.Game.Actions, as: Actions
   alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Deck, as: Deck

@@ -1,0 +1,283 @@
+$bgColor: #323130;
+$tableColor: #00e600;
+$seatColor: #1a53ff;
+$tableWidth: 800px;
+$tableHeight: 400px;
+$cardWidth: 70px;
+$stackWidth: 200px;
+$handSpacing: 30px;
+
+/* =============
+   Global Styles
+   =============
+*/
+
+* {
+  box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, p {
+  margin: 0;
+  padding: 0;
+}
+
+.btn {
+  border: none;
+  background: $seatColor;
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  cursor: grab;
+}
+
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  font-size: 16px;
+  font-family: "Noto Sans JP", sans-serif;
+}
+
+div[data-phx-main=true] {
+  width: 100%;
+  height: 100vh;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.game {
+  width: 100%;
+  height: 100%;
+  background: $bgColor;
+  position: relative;
+}
+
+.table {
+  width: $tableWidth;
+  height: $tableHeight;
+  left: calc(50% - 400px);
+  top: calc(50% - 200px);
+  border-radius: 40%;
+  position: absolute;
+  background: $tableColor;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  width: $cardWidth;
+  
+  img {
+    width: 100%;
+  }
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, $cardWidth);
+  grid-gap: 5px;
+  justify-content: center;
+}
+
+.seat {
+  font-size: 1.3em;
+  position: absolute;
+  border-radius: 50%;
+  width: $cardWidth;
+  height: $cardWidth;
+  
+  color: white;
+  background: $seatColor;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.seat.filled {
+  background: none;
+  
+  .seat--name {
+    display: none;
+  }
+}
+
+.seat[data-position="1"] {
+  bottom: calc(-#{$cardWidth} * 0.5);
+}
+
+.seat[data-position="2"] {
+  bottom: calc(#{$cardWidth} * 0.3);
+  left: calc(#{$cardWidth} * 0.5);
+}
+
+.seat[data-position="3"] {
+  top: calc(#{$cardWidth} * 0.3);
+  left: calc(#{$cardWidth} * 0.5);
+}
+
+.seat[data-position="4"] {
+  top: calc(-#{$cardWidth} * 0.5);
+}
+
+.seat[data-position="5"] {
+  top: calc(#{$cardWidth} * 0.3);
+  right: calc(#{$cardWidth} * 0.5);
+}
+
+.seat[data-position="6"] {
+  bottom: calc(#{$cardWidth} * 0.3);
+  right: calc(#{$cardWidth} * 0.5);
+}
+
+/* ===============
+   Player Styles
+   ===============
+*/
+
+.player {
+  width: calc(#{$cardWidth} + 4 * #{$handSpacing});
+  position: absolute;
+  z-index: 1;
+  font-size: 1.2rem;
+  display: grid;
+  grid-template-rows: 40px 60px;
+  justify-items: center;
+}
+
+.player--hand {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 30px);
+}
+
+.folded {
+  opacity: 0;
+}
+
+.player--stack {
+  width: 100%;
+  background: #323130;
+  color: white;
+  border-radius: 0.2em;
+  opacity: 0.95;
+  padding: 0.3em ;
+  white-space: nowrap;
+  text-align: center;
+  z-index: 2;
+}
+
+.turn > .player--stack {
+  border: 1px solid gold;
+}
+
+.player--action {
+  font-size: 0.9em;
+  width: 100%;
+  padding: 0.2em;
+  text-align: center;
+  color: white;
+  background: #f54242;
+}
+
+.player--action.passive {
+  background: #042f66;
+}
+
+/* BUTTON */
+
+.dealer {
+  font-weight: bold;
+  font-size: 0.7rem;
+  background: white;
+  border-radius: 50%;
+  width: 4em;
+  height: 4em;
+  text-align: center;
+  line-height: 4em;
+  position: absolute;
+}
+
+.dealer[data-position="1"] {
+  bottom: 10%;
+  left: 35%;
+}
+
+.dealer[data-position="2"] {
+  left: 20%;
+  bottom: 25%;
+}
+
+.dealer[data-position="3"] {
+  left: 20%;
+  top: 25%;
+}
+
+.dealer[data-position="4"] {
+  top: 10%;
+  right: 40%;
+}
+
+.dealer[data-position="5"] {
+  right: 20%;
+  top: 25%;
+}
+
+.dealer[data-position="6"] {
+  right: 20%;
+  bottom: 25%;
+}
+
+/* ==========
+   Action Bar
+   ==========
+*/
+
+.action-bar {
+  position: absolute;
+  width: 260px;
+  height: 50px;
+  left: calc(50% - 0.5 * 260px);
+  bottom: 100px;
+  text-align: center;
+}
+
+.action-bar--bet-sizes {
+  padding: 5px 0;
+}
+
+.action-bar--slider {
+  input[type="text"] {
+    width: 5em;
+  }
+}
+
+.action-bar--buttons {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+  
+  .btn {
+    margin-left: 10px;
+  }
+}
+
+.btn-passive, .btn-aggressive {
+  padding: 0.5em;
+}
+
+.btn-passive {
+  background: #042f66;
+}
+
+.btn-aggressive {
+  background: #f54242;
+}
