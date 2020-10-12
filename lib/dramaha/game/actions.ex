@@ -6,20 +6,29 @@ defmodule Dramaha.Game.Actions do
   alias Dramaha.Game.Pot, as: Pot
   alias Dramaha.Game.State, as: State
 
-  # We'll model raising as betting even though players usually distinguish these
-  # it makes the code simpler
+  # Blind actions are not ever played by users, but are used for UI purposes
   @type action() ::
-          :check
+          {:small_blind, integer()}
+          | {:big_blind, integer()}
+
+          # Actual actions that can be played during a hand
+          | :check
           # Used for preflop
           | :option_check
           | :fold
           | {:bet, integer()}
-          | :call
+          # Raise and all in are equivalent to {:bet} but they will look different in the UI
+          # as far as the Dramaha.Game namespace is concerned these are the exact same thing.
+          | {:raise, integer()}
+          | {:all_in, integer()}
+          | {:call, integer()}
           | {:draw, list(Card.t())}
           # Actions representing a draw 1 scenario where every player can see what the player drew
           # and the player has to decide to keep or throw it.
           | :keep
           | :throw
+
+          # Played by a player
           | :deal
 
   defmodule Config do
@@ -34,7 +43,71 @@ defmodule Dramaha.Game.Actions do
 
   @spec bet?(action()) :: boolean()
   def bet?({:bet, _}), do: true
+  def bet?({:raise, _}), do: true
+  def bet?({:all_in, _}), do: true
   def bet?(_), do: false
+
+  @doc """
+  A human readable string describing an action
+  """
+  @spec describe(action()) :: String.t()
+  def describe(action) do
+    case action do
+      {:small_blind, size} ->
+        "Small Blind #{size}"
+
+      {:big_blind, size} ->
+        "Big Blind #{size}"
+
+      :check ->
+        "Check"
+
+      :option_check ->
+        "Check"
+
+      {:call, size} ->
+        "Call #{size}"
+
+      :fold ->
+        "Fold"
+
+      {:bet, size} ->
+        "Bet #{size}"
+
+      {:raise, size} ->
+        "Raise to #{size}"
+
+      {:all_in, size} ->
+        "All In #{size}"
+
+      {:draw, []} ->
+        "Stand Pack"
+
+      {:draw, discards} ->
+        "Draw #{length(discards)}"
+
+      :keep ->
+        "It's decent"
+
+      :throw ->
+        "Draw again"
+    end
+  end
+
+  @doc """
+  The atom of the action
+  """
+  @spec atom(action()) :: atom()
+  def atom({atom, _}), do: atom
+  def atom(atom), do: atom
+
+  @doc """
+  The bet size of the action
+  """
+  @spec size(action()) :: integer() | nil
+  def size({:draw, _}), do: nil
+  def size({_, s}), do: s
+  def size(_), do: nil
 
   @doc """
   Places a bet for the player, ensuring that they're all in for less
@@ -83,41 +156,37 @@ defmodule Dramaha.Game.Actions do
   def execute_action(%{players: players, player_turn: idx} = state, :fold) do
     updated_players = List.update_at(players, idx, &fold(&1))
 
-    %{state | players: updated_players, player_turn: find_next_player(updated_players, idx)}
+    State.find_next_player(%{state | players: updated_players})
   end
 
   # Check Implementation
-  def execute_action(%{players: players, player_turn: idx} = state, :check) do
-    %{state | player_turn: find_next_player(players, idx)}
+  def execute_action(state, :check) do
+    State.find_next_player(state)
   end
 
   # Option Check Implementation
   def execute_action(%{players: players, player_turn: idx} = state, :option_check) do
     updated_players = List.update_at(players, idx, &%{&1 | has_option: false})
-    %{state | players: updated_players, player_turn: find_next_player(players, idx)}
+    State.find_next_player(%{state | players: updated_players})
   end
 
   # Call Implementation
   def execute_action(
-        %{players: players, last_caller: last_caller, player_turn: idx, pot: pot} = state,
-        :call
+        %{players: players, player_turn: idx, pot: pot} = state,
+        {:call, _}
       ) do
     player = State.current_player(state)
-    %{bet: total_size} = last_caller
+    call_size = State.current_call_size(state)
 
-    # The call should be at least the size of the big blind (this handles when the big blind doesn't have enough
-    # chips to post a full blind)
-    call_size = max(total_size, state.bet_config.big_blind)
     {new_last_caller, pot, _} = increase_wager(player, call_size, pot)
     updated_players = List.replace_at(players, idx, new_last_caller)
 
-    %{
+    State.find_next_player(%{
       state
       | players: updated_players,
         last_caller: new_last_caller,
-        player_turn: find_next_player(updated_players, idx),
         pot: pot
-    }
+    })
   end
 
   # Bet Implementation
@@ -138,29 +207,35 @@ defmodule Dramaha.Game.Actions do
 
     updated_players = List.replace_at(players, idx, updated_player)
 
-    cond do
-      # If the bet was aggressive update both the last aggressor and last caller
-      aggressive? ->
-        %{
-          state
-          | players: updated_players,
-            last_aggressor: updated_player,
-            last_caller: updated_player,
-            pot: pot,
-            player_turn: find_next_player(updated_players, idx)
-        }
+    state =
+      cond do
+        # If the bet was aggressive update both the last aggressor and last caller
+        aggressive? ->
+          %{
+            state
+            | players: updated_players,
+              last_aggressor: updated_player,
+              last_caller: updated_player,
+              pot: pot
+          }
 
-      # If the bet was not aggressive update only the last caller (treat the bet as a call)
-      true ->
-        %{
-          state
-          | players: updated_players,
-            last_caller: updated_player,
-            pot: pot,
-            player_turn: find_next_player(updated_players, idx)
-        }
-    end
+        # If the bet was not aggressive update only the last caller (treat the bet as a call)
+        true ->
+          %{
+            state
+            | players: updated_players,
+              last_caller: updated_player,
+              pot: pot
+          }
+      end
+
+    State.find_next_player(state)
   end
+
+  # Raise / All In are equivalent to betting, they're simply named as such for display
+  # purposes
+  def execute_action(state, {:raise, size}), do: execute_action(state, {:bet, size})
+  def execute_action(state, {:all_in, size}), do: execute_action(state, {:bet, size})
 
   # Deal Implementation
   def execute_action(%{street: street, deck: deck, board: board} = state, :deal) do
@@ -169,10 +244,19 @@ defmodule Dramaha.Game.Actions do
         :preflop ->
           Deck.draw(deck, 3)
 
+        :preflop_race ->
+          Deck.draw(deck, 3)
+
         :draw ->
           Deck.draw(deck, 1)
 
+        :draw_race ->
+          Deck.draw(deck, 1)
+
         :turn ->
+          Deck.draw(deck, 1)
+
+        :turn_race ->
           Deck.draw(deck, 1)
 
         _ ->
@@ -187,7 +271,7 @@ defmodule Dramaha.Game.Actions do
         Player.update_board_hand(player, updated_board)
       end)
 
-    %{
+    updated_state = %{
       state
       | awaiting_deal: false,
         players: updated_players,
@@ -195,42 +279,60 @@ defmodule Dramaha.Game.Actions do
         board: updated_board,
         street: State.next_street(street)
     }
+
+    cond do
+      State.racing?(updated_state) && !State.draw_street?(updated_state) ->
+        %{updated_state | awaiting_deal: true}
+
+      true ->
+        updated_state
+    end
   end
 
   # Draw no cards is a no-op except moving to the next player
-  def execute_action(%{street: :draw} = state, {:draw, []}) do
-    %{state | player_turn: find_next_player(state.players, state.player_turn)}
+  def execute_action(state, {:draw, []}) do
+    players =
+      List.update_at(state.players, state.player_turn, fn player ->
+        %{player | done_drawing: true}
+      end)
+
+    State.find_next_player(%{state | players: players})
   end
 
   # Draw 1 scenario (card will be faceup and player can keep or discard again)
-  def execute_action(%{street: :draw, player_turn: idx} = state, {:draw, [discard]}) do
+  def execute_action(%{player_turn: idx} = state, {:draw, [discard]}) do
     {state, [faceup]} = draw_cards(state, [discard])
 
-    new_players = List.update_at(state.players, idx, &%{&1 | faceup_card: faceup})
+    new_players =
+      List.update_at(state.players, idx, &%{&1 | faceup_card: faceup, done_drawing: false})
 
     # Don't change whose turn it is
     %{state | players: new_players}
   end
 
   # Draw implementation for (discard > 1 card)
-  def execute_action(%{street: :draw, player_turn: idx} = state, {:draw, discards}) do
+  def execute_action(state, {:draw, discards}) do
     {state, _} = draw_cards(state, discards)
 
-    %{state | player_turn: find_next_player(state.players, idx)}
+    State.find_next_player(state)
   end
 
-  # If we keep the 1 card discard there is no change to the state other than to choose the next player
-  def execute_action(%{street: :draw, players: players, player_turn: idx} = state, :keep) do
-    %{state | player_turn: find_next_player(players, idx)}
-  end
+  # If we keep the 1 card discard it's equivalent to standing pat.
+  def execute_action(state, :keep), do: execute_action(state, {:draw, []})
 
   # If we throw the 1 card
-  def execute_action(%{street: :draw, players: players, player_turn: idx} = state, :throw) do
-    %{faceup_card: faceup} = Enum.at(players, idx)
-    new_players = List.replace_at(players, idx, &%{&1 | faceup_card: nil})
+  def execute_action(state, :throw) do
+    %{faceup_card: faceup} = State.current_player(state)
+
+    new_players =
+      List.update_at(
+        state.players,
+        state.player_turn,
+        &%{&1 | faceup_card: nil, done_drawing: true}
+      )
 
     {state, _} = draw_cards(%{state | players: new_players}, [faceup])
-    %{state | player_turn: find_next_player(state.players, idx)}
+    State.find_next_player(state)
   end
 
   @spec draw_cards(State.t(), list(Card.t())) :: {State.t(), list(Card.t())}
@@ -247,7 +349,8 @@ defmodule Dramaha.Game.Actions do
         player_updated_in_hand = %{
           player
           | holding: new_holding,
-            hand: Poker.evaluate(new_holding)
+            hand: Poker.evaluate(new_holding),
+            done_drawing: true
         }
 
         Player.update_board_hand(player_updated_in_hand, state.board)
@@ -257,34 +360,6 @@ defmodule Dramaha.Game.Actions do
       %{state | deck: deck, players: new_players},
       replaced_cards
     }
-  end
-
-  @spec find_next_player(list(Player.t()), integer()) :: integer()
-  defp find_next_player(players, player_turn) do
-    # Look to the left of player (higher indexes in the array)
-    num_players = length(players)
-    players_with_idx = Enum.zip(players, 0..num_players)
-    right_slice = Enum.slice(players_with_idx, player_turn + 1, num_players)
-
-    # Filters out players that haven't folded and aren't already all in
-    filter =
-      &Enum.filter(&1, fn {player, _} ->
-        !Player.folded?(player) && !Player.all_in?(player)
-      end)
-
-    # Find players that haven't folded on the right
-    case filter.(right_slice) do
-      # The first player on the right that hasn't folded is matched
-      [{_, i} | _] ->
-        i
-
-      # There are no players on the right let's check the entire array
-      [] ->
-        case filter.(players_with_idx) do
-          [{_, i} | _] -> i
-          _ -> player_turn
-        end
-    end
   end
 
   @spec available_actions(State.t()) :: list(action())
@@ -320,10 +395,10 @@ defmodule Dramaha.Game.Actions do
 
     cond do
       stack <= min_bet ->
-        [:check, {:bet, stack}]
+        [:check, {:all_in, stack}]
 
       true ->
-        [:check, {:bet, min_bet}, {:bet, max_bet}]
+        [:check, {:bet, min_bet}, max_bet_action(max_bet, stack, :bet, 0)]
     end
   end
 
@@ -332,24 +407,16 @@ defmodule Dramaha.Game.Actions do
   defp available_actions(
          %{stack: stack, bet: player_bet} = player,
          %{
-           last_aggressor: %{raise_by: last_raise},
-           last_caller: %{bet: call_total_size},
+           last_aggressor: last_aggressor,
            pot: pot
          } = state
        ) do
     # The call size must be at least a big blind preflop.
-    call_total_size =
-      cond do
-        state.street == :preflop ->
-          max(call_total_size, state.bet_config.big_blind)
-
-        true ->
-          call_total_size
-      end
+    call_total_size = State.current_call_size(state)
 
     # We must raise by at least a big blind. If someone goes all in for less than a big blind on a later
     # street and we want to isolate, set the minimum to at least a big blind more than the bet.
-    last_raise = max(last_raise, state.bet_config.big_blind)
+    last_raise = max(last_aggressor.raise_by, state.bet_config.big_blind)
 
     # The call value is how much more we have to put in to call. If we bet and got raised we need to subtract by
     # our current bet.
@@ -364,25 +431,36 @@ defmodule Dramaha.Game.Actions do
     cond do
       # It's limped to us and we have option
       player.has_option && call_value == 0 ->
-        [:option_check, {:bet, min_bet}, {:bet, max_bet}]
+        [:option_check, {:raise, min_bet}, max_bet_action(max_bet, stack, :raise, player_bet)]
 
       # We don't have enough for any raise, either fold or call all in
       stack <= call_value ->
-        [:fold, :call]
+        [:fold, {:call, stack}]
 
       # We don't have enough to make a legal raise, we can either fold, call or commit the rest of our stack
       # If we have just enough to legally raise, it's the same.
-      stack <= min_bet ->
-        [:fold, :call, {:bet, stack}]
+      stack + player_bet <= min_bet ->
+        [:fold, {:call, call_value}, {:all_in, stack + player_bet}]
 
       # Otherwise we have the option of betting from a min_bet to a full pot size raise
       true ->
         # The raise will be equal to the total pot size (including committed chips by other players and ourself)
         # The amount left for us to call. Since we measure bets in the total amount, we also must add in the total
         # call size.
-        [:fold, :call, {:bet, min_bet}, {:bet, max_bet}]
+        [
+          :fold,
+          {:call, call_value},
+          {:raise, min_bet},
+          max_bet_action(max_bet, stack, :raise, player_bet)
+        ]
     end
   end
+
+  @spec max_bet_action(integer(), integer(), :raise | :bet, integer()) :: action()
+  defp max_bet_action(max_bet, stack, _, player_bet) when max_bet >= stack + player_bet,
+    do: {:all_in, stack + player_bet}
+
+  defp max_bet_action(max_bet, _, action_type, _), do: {action_type, max_bet}
 
   @spec available_draw_actions(Player.t()) :: list(action())
   defp available_draw_actions(%{faceup_card: nil}), do: [{:draw, []}]

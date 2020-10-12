@@ -74,13 +74,25 @@ defmodule Dramaha.Hand do
     if !action_allowed?(action, available_actions) do
       {:invalid_action, action}
     else
+      # Save that this player played this action in `last_street_action`
+      current_player_idx = state.player_turn
       next_state = Actions.execute_action(state, action)
 
-      cond do
-        !street_action?(action) -> {:ok, next_state}
-        hand_over?(next_state) -> {:ok, close_hand(next_state)}
-        action_closed?(next_state) -> {:ok, close_betting_round(next_state)}
-        true -> {:ok, next_state}
+      if street_action?(action) do
+        next_players =
+          List.update_at(next_state.players, current_player_idx, fn player ->
+            %{player | last_street_action: action}
+          end)
+
+        next_state = %{next_state | players: next_players}
+
+        cond do
+          !State.racing?(next_state) && hand_over?(next_state) -> {:ok, close_hand(next_state)}
+          action_closed?(next_state) -> {:ok, close_betting_round(next_state)}
+          true -> {:ok, next_state}
+        end
+      else
+        {:ok, next_state}
       end
     end
   end
@@ -121,13 +133,38 @@ defmodule Dramaha.Hand do
   defp close_betting_round(%{players: players, pot: pot, street: street} = state) do
     {updated_pot, updated_players} = Pot.gather_bets(pot, players)
 
+    # Reset the last street action going into the next betting street
+    updated_players =
+      Enum.map(updated_players, fn player -> %{player | last_street_action: nil} end)
+
     next_state = State.start_new_round(%{state | players: updated_players, pot: updated_pot})
 
     cond do
-      street == :river -> %{next_state | awaiting_deal: false, street: :showdown}
-      street == :flop -> %{next_state | awaiting_deal: false, street: :draw}
-      true -> %{next_state | awaiting_deal: true}
+      street == :river ->
+        %{next_state | awaiting_deal: false, street: :showdown}
+
+      street == :flop ->
+        %{next_state | awaiting_deal: false, street: :draw}
+
+      street == :draw_race || street == :turn_race ->
+        flip_cards_for_race(%{next_state | awaiting_deal: true})
+
+      true ->
+        %{next_state | awaiting_deal: true}
     end
+  end
+
+  @spec flip_cards_for_race(State.t()) :: State.t()
+  defp flip_cards_for_race(state) do
+    show_cards =
+      Enum.map(state.players, fn player ->
+        cond do
+          !Player.folded?(player) -> %{player | show_hand: true}
+          true -> player
+        end
+      end)
+
+    %{state | players: show_cards}
   end
 
   @spec close_hand(State.t()) :: State.t()
@@ -156,13 +193,21 @@ defmodule Dramaha.Hand do
           {:turn_race, true}
       end
 
-    %{
+    updated_state = %{
       state
       | players: updated_players,
         pot: updated_pot,
         street: next_street,
         awaiting_deal: awaiting_deal
     }
+
+    cond do
+      next_street == :turn_race ->
+        flip_cards_for_race(updated_state)
+
+      true ->
+        updated_state
+    end
   end
 
   @spec award_sidepot_on_fold(Pot.t(), list(Player.t())) :: {Pot.t(), list(Player.t())}
@@ -183,16 +228,32 @@ defmodule Dramaha.Hand do
 
   @spec hand_over?(State.t()) :: boolean()
   defp hand_over?(%{players: players}) do
-    can_still_bet = Enum.filter(players, &(!Player.folded?(&1) && !Player.all_in?(&1)))
+    still_in = Enum.filter(players, &(!Player.folded?(&1)))
+    largest_bet = Enum.map(still_in, & &1.bet) |> Enum.max()
 
-    cond do
-      length(can_still_bet) <= 1 -> true
-      true -> false
+    can_still_bet = Enum.filter(still_in, &(!Player.all_in?(&1)))
+
+    # If the last remaining play with chips hasn't matched the largest stack
+    case can_still_bet do
+      [] ->
+        true
+
+      [only_remaining] ->
+        only_remaining.bet == largest_bet
+
+      _ ->
+        false
     end
   end
 
   @spec action_closed?(State.t()) :: boolean()
-  # Non preflop there are no blinds so the logic is different
+  defp action_closed?(%{street: :draw} = state) do
+    # During a draw round the action is closed if all players are either folded or done drawing
+    Enum.all?(state.players, &(Player.folded?(&1) || &1.done_drawing))
+  end
+
+  defp action_closed?(%{street: :draw_race} = state), do: action_closed?(%{state | street: :draw})
+
   defp action_closed?(%{players: players, player_turn: player_turn} = state) do
     # If all bets are 0 then the action is closed if and only if
     # we're back to the first player
@@ -203,7 +264,7 @@ defmodule Dramaha.Hand do
       still_in = Enum.filter(players, &(!Player.folded?(&1)))
       largest_bet = Enum.map(still_in, & &1.bet) |> Enum.max()
 
-      all_bets_matched = Enum.all?(still_in, &(&1.stack == 0 || &1.bet == largest_bet))
+      all_bets_matched = Enum.all?(still_in, &(Player.all_in?(&1) || &1.bet == largest_bet))
 
       cond do
         # We have a limped pot preflop, has the big blind exercised his option?
@@ -220,15 +281,11 @@ defmodule Dramaha.Hand do
   end
 
   @spec action_allowed?(Actions.action(), list(Actions.action())) :: boolean()
-  defp action_allowed?({:bet, size}, available_actions) do
-    allowed_bets = Enum.filter(available_actions, &Actions.bet?(&1))
+  defp action_allowed?({:bet, size}, available_actions),
+    do: bet_or_raise_allowed?({:bet, size}, available_actions)
 
-    case allowed_bets do
-      [{:bet, min_bet}, {:bet, max_bet}] -> min_bet <= size && max_bet >= size
-      [{:bet, only_bet_allowed}] -> size == only_bet_allowed
-      _ -> false
-    end
-  end
+  defp action_allowed?({:raise, size}, available_actions),
+    do: bet_or_raise_allowed?({:raise, size}, available_actions)
 
   defp action_allowed?({:draw, discards}, available_actions) do
     cond do
@@ -240,13 +297,34 @@ defmodule Dramaha.Hand do
     end
   end
 
-  defp action_allowed?(atom, available_actions), do: Enum.member?(available_actions, atom)
+  # All in is covered in this case because there's only one possible all in action at any given time
+  defp action_allowed?(action, available_actions), do: Enum.member?(available_actions, action)
+
+  @spec bet_or_raise_allowed?({:bet | :raise, integer()}, list(Actions.action())) :: boolean()
+  # The logic is identical for whether a bet or raise is allowed
+  defp bet_or_raise_allowed?({atom, size}, available_actions) do
+    allowed_bets = Enum.filter(available_actions, &Actions.bet?(&1))
+
+    # These type == atom guards ensure that we don't use {:bet, 20} instead of {:raise, 20} whenever
+    # the situation requires one or the other.
+    case allowed_bets do
+      [{type, min_bet}, {type, max_bet}] when type == atom -> min_bet <= size && max_bet >= size
+      # If the max bet is all in then the allowed action to go all in would be {:all_in, max_bet}
+      # so deny any action for which max_bet >= size
+      [{type, min_bet}, {:all_in, max_bet}] when type == atom -> min_bet <= size && max_bet > size
+      [{type, only_bet_allowed}] when type == atom -> size == only_bet_allowed
+      _ -> false
+    end
+  end
 
   @spec post_blinds(Player.t(), Player.t(), Actions.Config.t()) ::
           {Player.t(), Player.t(), Pot.t()}
   defp post_blinds(sb_player, bb_player, %{small_blind: sb, big_blind: bb}) do
     {sb_player, pot, _} = Actions.place_bet(sb_player, nil, nil, sb, %Pot{})
     {bb_player, pot, _} = Actions.place_bet(bb_player, nil, nil, bb, pot)
+
+    sb_player = %{sb_player | last_street_action: {:small_blind, sb_player.bet}}
+    bb_player = %{bb_player | last_street_action: {:big_blind, bb_player.bet}}
 
     # Give option to bb (and sb depending on the situation)
     cond do

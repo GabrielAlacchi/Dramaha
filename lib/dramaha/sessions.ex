@@ -75,8 +75,12 @@ defmodule Dramaha.Sessions do
     end
   end
 
-  def subscribe(%{id: id}) do
-    Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{id}")
+  def subscribe(%{uuid: uuid}) do
+    Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{uuid}")
+  end
+
+  def broadcast_update(uuid) do
+    Phoenix.PubSub.broadcast(Dramaha.PubSub, "session:#{uuid}", :state_update)
   end
 
   @spec call_gameserver(Dramaha.Sessions.Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
@@ -108,7 +112,7 @@ defmodule Dramaha.Sessions do
            {Dramaha.Play, name: via_registry(session.uuid)}
          ) do
       {:ok, pid} ->
-        GenServer.call(pid, {:configure_session, config})
+        GenServer.call(pid, {:configure_session, session.uuid, config})
         pid
 
       {:error, {:already_started, pid}} ->

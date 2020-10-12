@@ -1,3 +1,6 @@
+@import "./pot.scss";
+@import "./chip.scss";
+
 $bgColor: #323130;
 $tableColor: #00e600;
 $seatColor: #1a53ff;
@@ -6,6 +9,10 @@ $tableHeight: 400px;
 $cardWidth: 70px;
 $stackWidth: 200px;
 $handSpacing: 30px;
+
+$actionAggro: #f54242;
+$actionCall: #228C22;
+$actionPassive: #042f66;
 
 /* =============
    Global Styles
@@ -77,6 +84,14 @@ div[data-phx-main=true] {
   img {
     width: 100%;
   }
+}
+
+.card.selected {
+  transform: translateY(-10px);
+}
+
+.card.selectable {
+  cursor: grab;
 }
 
 .board {
@@ -154,9 +169,14 @@ div[data-phx-main=true] {
 }
 
 .player--hand {
+  position: relative;
   width: 100%;
   display: grid;
   grid-template-columns: repeat(5, 30px);
+
+  .card {
+    position: relative
+  }
 }
 
 .folded {
@@ -185,11 +205,7 @@ div[data-phx-main=true] {
   padding: 0.2em;
   text-align: center;
   color: white;
-  background: #f54242;
-}
-
-.player--action.passive {
-  background: #042f66;
+  background: $actionAggro;
 }
 
 /* BUTTON */
@@ -270,14 +286,18 @@ div[data-phx-main=true] {
   }
 }
 
-.btn-passive, .btn-aggressive {
+.btn-action {
   padding: 0.5em;
 }
 
-.btn-passive {
-  background: #042f66;
+.aggressive {
+  background: $actionAggro;
 }
 
-.btn-aggressive {
-  background: #f54242;
+.passive {
+  background: $actionPassive;
+}
+
+.call {
+  background: $actionCall;
 }

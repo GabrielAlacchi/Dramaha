@@ -1,0 +1,15 @@
+<div class="player <%= if @turn?, do: "turn" %>" data-stack-size="<%= @player.stack %>">
+  <%= live_component(@socket, DramahaWeb.PlayLive.PlayerHandComponent, cards: @cards, selectable?: @selectable?, play_context: @play_context) %>
+  <div class="player--stack">
+    <p><%= @player.name %></p>
+    <p><%= @stack %></p>
+  </div>
+  <%= if @action != nil do %>
+    <%= live_component(
+      @socket,
+      DramahaWeb.PlayLive.ActionComponent,
+      action: @action,
+      current_hand: @state.current_hand,
+      player: @player) %>
+  <% end %>
+</div>

@@ -3,7 +3,6 @@ defmodule Dramaha.Game.Showdown do
   alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Poker, as: Poker
   alias Dramaha.Game.Player, as: Player
-  alias Dramaha.Game.ShowdownResult, as: ShowdownResult
 
   # A pot share can be up to 2 because we are tracking both individual and
   # cumulative pot shared (in hand + board together) pot shares.

@@ -1,0 +1,46 @@
+  <section class="table">
+    <%= live_component(@socket, DramahaWeb.PlayLive.BoardComponent, id: :board, state: @state) %>
+    <%= live_component(@socket, DramahaWeb.PlayLive.PotComponent, id: :pot, state: @state) %>
+
+    <section class="dealer" data-position="<%= shift_seat(@state.button_seat, @seat_shift) %>">
+      Dealer
+    </section>
+
+    <%= for {seat, player} <- @seat_assignments do %>
+      <section class="seat <%= if player != nil, do: "filled" %>" data-position="<%= shift_seat(seat, @seat_shift) %>">
+        <div class="seat--name">Seat <%= seat %></div>
+        <%= if player != nil do %>
+          <%= live_component(@socket, DramahaWeb.PlayLive.PlayerComponent, id: player.player_id, play_context: @play_context, state: @state, player: player, is_us: @us.player_id == player.player_id) %>
+        <% end %>
+      </section>
+    <% end %>
+
+    <!--
+    <section class="seat filled" data-position="1">
+      <div class="seat--name">Seat 1</div>
+      <div class="player self turn" data-stack-size="43.34">
+        <div class="player--hand">
+          <div class="card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+          </div>
+          <div class="card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+          </div>
+          <div class="card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+          </div>
+          <div class="card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+          </div>
+          <div class="card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+          </div>
+        </div>
+        <div class="player--stack">
+          <p>Gabriel</p>
+          <p>43.34</p>
+        </div>
+      </div>
+    </section>
+    -->
+  </section>

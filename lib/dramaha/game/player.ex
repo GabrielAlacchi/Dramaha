@@ -2,6 +2,7 @@ defmodule Dramaha.Game.Player do
   alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Showdown, as: Showdown
   alias Dramaha.Game.Poker, as: Poker
+  alias Dramaha.Game.Actions, as: Actions
 
   @type seat() :: 1 | 2 | 3 | 4 | 5 | 6
 
@@ -26,6 +27,9 @@ defmodule Dramaha.Game.Player do
             dealt_in: false,
             faceup_card: nil,
             has_option: false,
+            last_street_action: nil,
+            done_drawing: false,
+            show_hand: false,
 
             # We'll keep track of in hand and board hand as the hand progresses.
             holding: nil,
@@ -39,14 +43,17 @@ defmodule Dramaha.Game.Player do
           stack: integer(),
           seat: seat(),
           sitting_out: boolean(),
+          show_hand: boolean(),
           bet: integer(),
           raise_by: integer(),
           committed: integer(),
           dealt_in: boolean(),
           holding: Card.holding() | nil,
+          done_drawing: boolean(),
           hand: Poker.poker_hand(),
           faceup_card: Card.t() | nil,
           has_option: boolean(),
+          last_street_action: Actions.action() | nil,
           board_holding: Card.holding() | nil,
           board_hand: Poker.poker_hand()
         }
@@ -57,6 +64,9 @@ defmodule Dramaha.Game.Player do
   end
 
   @spec update_board_hand(t(), list(Card.t())) :: t()
+  # Do nothing if the player is folded
+  def update_board_hand(%{holding: nil} = player, _), do: player
+
   def update_board_hand(player, board) do
     {board_holding, board_hand} = Showdown.best_hand_on_board(player.holding, board)
     %{player | board_holding: board_holding, board_hand: board_hand}

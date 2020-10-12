@@ -1,3 +1,19 @@
-<div class="card">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/1/11/JC.svg" />
+<%= cond do %>
+<% @selectable? && @selected? -> %>
+  <div class="card selectable selected"
+       phx-target="#game"
+       phx-click="deselect_card"
+       phx-value-card="<%= Card.card_to_string(@card) %>">
+<% @selectable? -> %>
+  <div class="card selectable"
+       phx-target="#game"
+       phx-click="select_card"
+       phx-value-card="<%= Card.card_to_string(@card) %>">
+<% true -> %>
+  <div class="card <%= if @selected?, do: "selected" %>">
+<% end %>
+  <%= cond do
+    @hidden -> img_tag(Routes.static_path(@socket, "/images/Card_back_06.svg"), alt: "Back")
+    true -> img_tag(Routes.static_path(@socket, "/images/#{Card.card_to_string(@card)}.svg"), alt: Card.card_to_string(@card))
+  end %>
 </div>

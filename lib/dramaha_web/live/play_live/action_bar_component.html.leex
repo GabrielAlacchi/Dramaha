@@ -1,0 +1,53 @@
+<section class="action-bar">
+  <%= if @should_display? do %>
+    <%= if @bet_range != nil do %>
+      <div class="action-bar--slider">
+        <div class="action-bar--bet-sizes">
+          <button class="btn btn-bet-size" data-bet-portion="0.25" onclick="onBetSizeClick(this)">25%</button>
+          <button class="btn btn-bet-size" data-bet-portion="0.33" onclick="onBetSizeClick(this)">33%</button>
+          <button class="btn btn-bet-size" data-bet-portion="0.50" onclick="onBetSizeClick(this)">50%</button>
+          <button class="btn btn-bet-size" data-bet-portion="0.75" onclick="onBetSizeClick(this)">75%</button>
+          <button class="btn btn-bet-size" data-bet-portion="1" onclick="onBetSizeClick(this)">Skib</button>
+        </div>
+        <input type="range" min="0" max="1000000" value="500000" class="slider" id="bet-range"
+          oninput="onRangeInput()"
+          data-min-bet="<%= elem(@bet_range, 0) %>"
+          data-max-bet="<%= elem(@bet_range, 1) %>"
+          data-call-value="<%= @call_value %>"
+          data-pot-size="<%= @pot_size %>"
+          data-bet-so-far="<%= @bet_so_far %>"
+          data-max-all-in="<%= @max_all_in? %>"
+        >
+        <input id="bet-size" type="text" value="<%= elem(@middle_action, 1) %>" oninput="onBetTextInput()" onblur="onBetTextBlur()" />
+      </div>
+    <% end %>
+    <div class="action-bar--buttons">
+      <%= for action <- @available_actions do %>
+        <button class="btn btn-action <%= DramahaWeb.PlayLive.ActionComponent.action_class(action) %>"
+                phx-target="<%= @myself %>"
+                phx-click="action"
+                phx-value-action-type="<%= Actions.atom(action) %>"
+                phx-value-size="<%= Actions.size(action) %>">
+          <%= Dramaha.Game.Actions.describe(action) %>
+        </button>
+      <% end %>
+      <%= if @bet_range != nil do %>
+        <button
+        id="bet-button"
+        class="btn btn-action aggressive"
+        phx-target="<%= @myself %>"
+        phx-click="action"
+        phx-value-action-type="<%= Actions.atom(@middle_action) %>"
+        phx-value-size="<%= Actions.size(@middle_action) %>"><%= Actions.describe(@middle_action) %></button>
+      <% end %>
+      <%= if @drawing? && @draw_action != nil do %>
+        <button id="draw-button"
+                class="btn btn-action passive"
+                phx-target="<%= @myself %>"
+                phx-click="action"
+                phx-value-action-type="<%= Actions.atom(@draw_action) %>"
+                phx-value-cards=""><%= Actions.describe(@draw_action) %></button>
+      <% end %>
+    </div>
+  <% end %>
+</section>

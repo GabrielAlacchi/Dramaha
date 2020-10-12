@@ -1,0 +1,33 @@
+.chip {
+  font-size: 1.2em;
+  display: inline-block;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  border: .15em dashed white;
+  transition: all .5s ease;
+}
+
+.chip--white {
+  background: #ebe6e6;
+}
+
+.chip--red {
+  background: #f53838;
+}
+
+.chip--green {
+  background: #26800f;
+}
+
+.chip--black {
+  background: #323130;
+}
+
+.chip--purple {
+  background: #ad1aab; 
+}
+
+.chip--yellow {
+  background: #edeb80;
+}

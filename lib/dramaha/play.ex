@@ -7,24 +7,27 @@ defmodule Dramaha.Play do
   alias Dramaha.Game.State
   alias Dramaha.Game.Actions
   alias Dramaha.Hand
+  alias Dramaha.Sessions
 
   @type call() ::
           :query_state
           | {:new_player, Dramaha.Sessions.Player.t()}
           | {:update_sitout, Dramaha.Sessions.Player.t()}
-          | {:configure_session, Actions.Config.t()}
-          | {:play_action, Actions.action()}
+          | {:configure_session, String.t(), Actions.Config.t()}
+          | {:play_action, Dramaha.Sessions.Player.t(), Actions.action()}
 
   @spec __struct__ :: Dramaha.Play.t()
   defstruct players: [],
             current_hand: nil,
             button_seat: 1,
+            uuid: "",
             bet_config: %Actions.Config{small_blind: 1, big_blind: 1}
 
   @type t() :: %__MODULE__{
           players: list(Dramaha.Game.Player.t()),
           current_hand: State.t() | nil,
           button_seat: Dramaha.Game.Player.seat(),
+          uuid: String.t(),
           bet_config: Actions.Config.t()
         }
 
@@ -46,8 +49,8 @@ defmodule Dramaha.Play do
   end
 
   @impl true
-  def handle_call({:configure_session, bet_config}, _from, play) do
-    play = %{play | bet_config: bet_config}
+  def handle_call({:configure_session, uuid, bet_config}, _from, play) do
+    play = %{play | bet_config: bet_config, uuid: uuid}
     {:reply, play, play}
   end
 
@@ -67,12 +70,13 @@ defmodule Dramaha.Play do
 
     players =
       case players_after do
-        [] -> [new_game_player]
+        [] -> players ++ [new_game_player]
         [{_, i} | _] -> List.insert_at(players, i, new_game_player)
       end
 
     # Call start_new_hand here incase adding this player makes the game playable
     play = start_new_hand(%{play | players: players})
+    Sessions.broadcast_update(play.uuid)
     {:reply, play, play}
   end
 
@@ -87,23 +91,22 @@ defmodule Dramaha.Play do
       List.update_at(players, i, fn player -> %{player | sitting_out: db_player.sitting_out} end)
 
     play = start_new_hand(%{play | players: players})
+    Sessions.broadcast_update(play.uuid)
     {:reply, play, play}
   end
 
   @impl true
-  def handle_call({:play_action, action}, _from, play) do
+  def handle_call({:play_action, from_player, action}, _from, play) do
     case play.current_hand do
       nil ->
         {:reply, play, play}
 
       hand ->
-        case Hand.play_action(hand, action) do
-          {:ok, state} ->
-            play = %{play | current_hand: state}
-            {:reply, play, play}
-
-          {:invalid_action, _} ->
-            {:reply, play, play}
+        if !State.our_turn?(hand, from_player.id) do
+          {:reply, play, play}
+        else
+          play = play_action(play, action)
+          {:reply, play, play}
         end
     end
   end
@@ -112,13 +115,19 @@ defmodule Dramaha.Play do
   defp start_new_hand(%{current_hand: nil, bet_config: bet_config} = play) do
     sitin_players = Enum.filter(play.players, &(!&1.sitting_out))
 
-    cond do
-      length(sitin_players) >= 2 ->
-        positioned_by_button =
-          Enum.sort_by(sitin_players, fn player ->
-            {player.seat <= play.button_seat, player.seat}
-          end)
+    positioned_by_button =
+      Enum.sort_by(sitin_players, fn player ->
+        {player.seat <= play.button_seat, player.seat}
+      end)
 
+    cond do
+      # If just 2 players are in the session move the button to the next small blind
+      # length(sitin_players) == 2 ->
+      #  [sb, bb] = positioned_by_button
+      #  hand = Dramaha.Hand.start([bb, sb], bet_config)
+      #  %{play | current_hand: hand, button_seat: sb.seat}
+
+      length(sitin_players) >= 3 ->
         hand = Dramaha.Hand.start(positioned_by_button, bet_config)
         %{play | current_hand: hand}
 
@@ -129,4 +138,49 @@ defmodule Dramaha.Play do
 
   # This gets called if there's already a hand in progress
   defp start_new_hand(play), do: play
+
+  @spec play_action(t(), Actions.action()) :: t()
+  defp play_action(play, action) do
+    case Hand.play_action(play.current_hand, action) do
+      {:ok, state} ->
+        play = %{play | current_hand: state}
+        play = maybe_deal(play)
+
+        Sessions.broadcast_update(play.uuid)
+        play
+
+      {:invalid_action, _} ->
+        play
+    end
+  end
+
+  @impl true
+  def handle_info(:deal_timeout, play) do
+    case play.current_hand do
+      %{awaiting_deal: true} ->
+        {:noreply, play_action(play, :deal)}
+
+      nil ->
+        {:noreply, play}
+    end
+  end
+
+  @spec maybe_deal(t()) :: t()
+  defp maybe_deal(%{current_hand: %{awaiting_deal: true}} = play) do
+    timeout =
+      cond do
+        State.racing?(play.current_hand) && play.current_hand.street != :preflop_race ->
+          2500
+
+        true ->
+          650
+      end
+
+    Process.send_after(self(), :deal_timeout, timeout)
+    play
+  end
+
+  defp maybe_deal(play) do
+    play
+  end
 end

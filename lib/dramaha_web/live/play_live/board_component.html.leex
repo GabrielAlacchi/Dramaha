@@ -1,0 +1,5 @@
+<div class="board">
+  <%= for card <- @board_cards do %>
+    <%= live_component(@socket, DramahaWeb.PlayLive.CardComponent, card: card, hidden: false) %>
+  <% end %>
+</div>

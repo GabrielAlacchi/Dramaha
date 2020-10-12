@@ -67,6 +67,21 @@ defmodule Dramaha.Game.Card do
     end
   end
 
+  @spec card_to_string(card()) :: String.t()
+  def card_to_string({rank, suit}) do
+    rank_str =
+      case rank do
+        14 -> "A"
+        13 -> "K"
+        12 -> "Q"
+        11 -> "J"
+        10 -> "T"
+        n -> Integer.to_string(n)
+      end
+
+    "#{rank_str}#{suit}"
+  end
+
   @spec parse_suit(String.t()) :: suit() | :error
   @spec parse_rank(String.t()) :: integer() | :error
 
