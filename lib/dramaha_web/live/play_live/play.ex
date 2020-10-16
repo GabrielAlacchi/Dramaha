@@ -59,6 +59,13 @@ defmodule DramahaWeb.PlayLive.Play do
   end
 
   @impl true
+  def handle_info(:new_hand, socket) do
+    {:noreply,
+     assign(socket, :play_context, %Context{})
+     |> assign_play_state()}
+  end
+
+  @impl true
   def handle_event("select_card", %{"card" => card}, socket) do
     case Card.parse(card) do
       {:invalid_card, _} ->

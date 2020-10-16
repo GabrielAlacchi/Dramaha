@@ -1,0 +1,27 @@
+<div class="full-pot">
+  <%= if @in_hand do %>
+    <h2>Full Pot: <%= @pot.full_pot + @pot.committed %></h2>
+  <% end %>
+</div>
+<div class="pot" id="pot">
+  <%= if @in_hand do %>
+    <%= for {_, pot_size} <- Enum.reverse(@pot.pots) |> Enum.filter(fn {_, pot_size} -> pot_size > 0 end) do %>
+      <div class="pot--entry">
+        <div class="pot--split">
+        <h2><%= pot_size %></h2>
+        <div class="chip <%= chip_color_class(pot_size) %>"></div>
+        </div>
+      </div>
+    <% end %>
+    <%= for {{_, players}, idx} <- Enum.with_index(@showdowns) do %>
+      <div class="pot--entry won" id="showdown-<%= idx %>">
+        <%= for {seat, chips} <- players do %>
+          <div class="pot--split" data-target-seat="<%= seat %>">
+              <h2><%= chips %></h2>
+              <div class="chip <%= chip_color_class(chips) %>"></div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

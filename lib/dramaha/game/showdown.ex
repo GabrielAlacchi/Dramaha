@@ -26,6 +26,18 @@ defmodule Dramaha.Game.Showdown do
           won_chips: list(integer())
         }
 
+  @spec folded_showdown(integer(), integer()) :: t()
+  def folded_showdown(winner_idx, pot_size) do
+    %Dramaha.Game.Showdown{
+      pot_size: pot_size,
+      players: [winner_idx],
+      in_hand_shares: [1],
+      board_shares: [1],
+      total_shares: [1],
+      won_chips: [pot_size]
+    }
+  end
+
   @spec evaluate_full_showdown(list({integer(), Player.t()}), integer()) :: t()
   def evaluate_full_showdown(eligible_players, pot_size) do
     board_hands = Enum.map(eligible_players, fn {_, player} -> player.board_hand end)

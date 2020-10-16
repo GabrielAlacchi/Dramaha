@@ -2,7 +2,11 @@
   <%= live_component(@socket, DramahaWeb.PlayLive.PlayerHandComponent, cards: @cards, selectable?: @selectable?, play_context: @play_context) %>
   <div class="player--stack">
     <p><%= @player.name %></p>
-    <p><%= @stack %></p>
+    <%= if @sitting_out? do %>
+      <p>(Sitting Out)</p>
+    <%= else %>
+      <p><%= @stack %></p>
+    <% end %>
   </div>
   <%= if @action != nil do %>
     <%= live_component(

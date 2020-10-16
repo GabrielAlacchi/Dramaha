@@ -79,8 +79,8 @@ defmodule Dramaha.Sessions do
     Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{uuid}")
   end
 
-  def broadcast_update(uuid) do
-    Phoenix.PubSub.broadcast(Dramaha.PubSub, "session:#{uuid}", :state_update)
+  def broadcast_update(uuid, message \\ :state_update) do
+    Phoenix.PubSub.broadcast(Dramaha.PubSub, "session:#{uuid}", message)
   end
 
   @spec call_gameserver(Dramaha.Sessions.Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()

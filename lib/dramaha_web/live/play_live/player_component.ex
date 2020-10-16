@@ -20,6 +20,7 @@ defmodule DramahaWeb.PlayLive.PlayerComponent do
      socket
      |> assign(assigns)
      |> assign(:hand_state_player, hand_state_player)
+     |> assign(:sitting_out?, player.sitting_out)
      |> assign_turn(state, player)
      |> assign_stack(player, hand_state_player)
      |> assign_cards(state, hand_state_player, is_us)

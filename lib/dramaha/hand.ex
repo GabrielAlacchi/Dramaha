@@ -107,19 +107,14 @@ defmodule Dramaha.Hand do
       eligible_players = Enum.map(eligible_idxs, fn idx -> {idx, Enum.at(state.players, idx)} end)
       showdown = Showdown.evaluate_full_showdown(eligible_players, pot_size)
 
-      # Give chips to the winners
-      updated_winners =
-        Enum.zip(eligible_idxs, showdown.won_chips)
-        |> Enum.reduce(state.players, fn {idx, won_chips}, players_list ->
-          List.update_at(players_list, idx, fn player ->
-            %{player | stack: player.stack + won_chips}
-          end)
+      # For now we make the simplifying assumption that all players in a showdown will show
+      # in the future we'll introduce mucking logic with the last aggressor in the pot.
+      show_cards =
+        Enum.reduce(eligible_idxs, state.players, fn idx, players_list ->
+          List.update_at(players_list, idx, &%{&1 | show_hand: true})
         end)
 
-      {
-        :ok,
-        %{state | showdowns: state.showdowns ++ [showdown], players: updated_winners, pot: pot}
-      }
+      {:ok, award_showdown_chips(%{state | players: show_cards}, showdown, pot)}
     end
   end
 
@@ -170,11 +165,12 @@ defmodule Dramaha.Hand do
   @spec close_hand(State.t()) :: State.t()
   defp close_hand(%{pot: pot, players: players, street: street} = state) do
     {updated_pot, updated_players} = Pot.gather_bets(pot, players)
-    {updated_pot, updated_players} = award_sidepot_on_fold(updated_pot, updated_players)
+
+    updated_state = award_sidepot_on_fold(%{state | pot: updated_pot, players: updated_players})
 
     # The question now is do we go straight to showdown or a race?
     {next_street, awaiting_deal} =
-      case {street, updated_pot.pots} do
+      case {street, updated_state.pot.pots} do
         # If there are no further pots to contend for
         {_, []} ->
           {:folded, false}
@@ -194,10 +190,8 @@ defmodule Dramaha.Hand do
       end
 
     updated_state = %{
-      state
-      | players: updated_players,
-        pot: updated_pot,
-        street: next_street,
+      updated_state
+      | street: next_street,
         awaiting_deal: awaiting_deal
     }
 
@@ -210,20 +204,34 @@ defmodule Dramaha.Hand do
     end
   end
 
-  @spec award_sidepot_on_fold(Pot.t(), list(Player.t())) :: {Pot.t(), list(Player.t())}
-  defp award_sidepot_on_fold(pot, players) do
-    case Pot.peek_eligible(pot, players) do
+  @spec award_sidepot_on_fold(State.t()) :: State.t()
+  defp award_sidepot_on_fold(state) do
+    case Pot.peek_eligible(state.pot, state.players) do
       # The winner won an additional side pot without need for a showdown (or the main pot in the case
       # everyone folded through)
-      [{winner, idx}] ->
-        {updated_pot, updated_player} = Pot.award_next_pot(pot, winner)
-        updated_players = List.replace_at(players, idx, updated_player)
+      [{_, idx}] ->
+        {pot, pot_size, _} = Pot.pop_showdown(state.pot, state.players)
 
-        {updated_pot, updated_players}
+        showdown = Showdown.folded_showdown(idx, pot_size)
+        award_showdown_chips(state, showdown, pot)
 
       _ ->
-        {pot, players}
+        state
     end
+  end
+
+  @spec award_showdown_chips(State.t(), Showdown.t(), Pot.t()) :: State.t()
+  defp award_showdown_chips(state, showdown, pot) do
+    # Give chips to the winners
+    updated_winners =
+      Enum.zip(showdown.players, showdown.won_chips)
+      |> Enum.reduce(state.players, fn {idx, won_chips}, players_list ->
+        List.update_at(players_list, idx, fn player ->
+          %{player | stack: player.stack + won_chips}
+        end)
+      end)
+
+    %{state | showdowns: state.showdowns ++ [showdown], players: updated_winners, pot: pot}
   end
 
   @spec hand_over?(State.t()) :: boolean()

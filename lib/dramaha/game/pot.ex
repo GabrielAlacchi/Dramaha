@@ -69,7 +69,7 @@ defmodule Dramaha.Game.Pot do
 
     {
       # remove the next_pot and subtract its size from the full pot
-      %{pot | full_pot: pot.full_pot - pot_size, pots: [rest]},
+      %{pot | full_pot: pot.full_pot - pot_size, pots: rest},
       # Size of the side pot that's being competed for
       pot_size,
       eligible_indices

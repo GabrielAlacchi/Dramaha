@@ -31,6 +31,19 @@ defmodule Dramaha.Play do
           bet_config: Actions.Config.t()
         }
 
+  @spec start_link([
+          {:debug, [:log | :statistics | :trace | {any, any}]}
+          | {:hibernate_after, :infinity | non_neg_integer}
+          | {:name, atom | {:global, any} | {:via, atom, any}}
+          | {:spawn_opt,
+             :link
+             | :monitor
+             | {:fullsweep_after, non_neg_integer}
+             | {:min_bin_vheap_size, non_neg_integer}
+             | {:min_heap_size, non_neg_integer}
+             | {:priority, :high | :low | :normal}}
+          | {:timeout, :infinity | non_neg_integer}
+        ]) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(options) do
     GenServer.start_link(__MODULE__, %Dramaha.Play{}, options)
   end
@@ -113,22 +126,27 @@ defmodule Dramaha.Play do
 
   @spec start_new_hand(t()) :: t()
   defp start_new_hand(%{current_hand: nil, bet_config: bet_config} = play) do
-    sitin_players = Enum.filter(play.players, &(!&1.sitting_out))
+    sitin_players = Enum.filter(play.players, &(!&1.sitting_out && &1.stack > 0))
 
     positioned_by_button =
       Enum.sort_by(sitin_players, fn player ->
         {player.seat <= play.button_seat, player.seat}
       end)
 
-    cond do
-      # If just 2 players are in the session move the button to the next small blind
-      # length(sitin_players) == 2 ->
-      #  [sb, bb] = positioned_by_button
-      #  hand = Dramaha.Hand.start([bb, sb], bet_config)
-      #  %{play | current_hand: hand, button_seat: sb.seat}
+    btn_on_player? = Enum.any?(positioned_by_button, &(&1.seat == play.button_seat))
 
-      length(sitin_players) >= 3 ->
+    cond do
+      # If just 2 players are in the session and the button isn't on one of them then
+      # move the button to the next small blind
+      length(sitin_players) == 2 && !btn_on_player? ->
+        [sb, bb] = positioned_by_button
+        hand = Dramaha.Hand.start([bb, sb], bet_config)
+        Sessions.broadcast_update(play.uuid, :new_hand)
+        %{play | current_hand: hand, button_seat: sb.seat}
+
+      length(sitin_players) >= 2 ->
         hand = Dramaha.Hand.start(positioned_by_button, bet_config)
+        Sessions.broadcast_update(play.uuid, :new_hand)
         %{play | current_hand: hand}
 
       true ->
@@ -146,8 +164,11 @@ defmodule Dramaha.Play do
         play = %{play | current_hand: state}
         play = maybe_deal(play)
 
-        Sessions.broadcast_update(play.uuid)
-        play
+        case maybe_showdown(play) do
+          {_, play} ->
+            Sessions.broadcast_update(play.uuid)
+            play
+        end
 
       {:invalid_action, _} ->
         play
@@ -160,9 +181,58 @@ defmodule Dramaha.Play do
       %{awaiting_deal: true} ->
         {:noreply, play_action(play, :deal)}
 
-      nil ->
+      _ ->
         {:noreply, play}
     end
+  end
+
+  def handle_info(:next_showdown, play) do
+    case play.current_hand do
+      %{street: :showdown} ->
+        case maybe_showdown(play) do
+          {:done, play} ->
+            play = end_hand(play)
+            Sessions.broadcast_update(play.uuid)
+            {:noreply, play}
+
+          {_, play} ->
+            {:noreply, play}
+        end
+
+      _ ->
+        {:noreply, play}
+    end
+  end
+
+  def handle_info(:next_hand, play) do
+    {:noreply, end_hand(play)}
+  end
+
+  @spec end_hand(t()) :: t()
+  defp end_hand(play) do
+    players =
+      Enum.map(play.players, fn player ->
+        hand_state_player =
+          Enum.find(play.current_hand.players, fn %{player_id: pid} -> pid == player.player_id end)
+
+        case hand_state_player do
+          nil ->
+            player
+
+          hsp ->
+            %{player | stack: hsp.stack}
+        end
+      end)
+
+    play = %{play | players: players}
+
+    # Find the first player sitting in which has a seat > current_btn
+    sitting_in = Enum.filter(play.players, &(!&1.sitting_out))
+    next_btn = Enum.find(sitting_in, &(&1.seat > play.button_seat))
+
+    next_btn = next_btn || Enum.find(sitting_in, &(&1.seat > play.button_seat - 6))
+
+    start_new_hand(%{play | button_seat: next_btn.seat, current_hand: nil})
   end
 
   @spec maybe_deal(t()) :: t()
@@ -183,4 +253,23 @@ defmodule Dramaha.Play do
   defp maybe_deal(play) do
     play
   end
+
+  @spec maybe_showdown(t()) :: {:showdown, t()} | {:done, t()} | {:ignore, t()}
+  defp maybe_showdown(%{current_hand: %{street: :showdown}} = play) do
+    case Hand.handle_next_showdown(play.current_hand) do
+      {:ok, hand} ->
+        Process.send_after(self(), :next_showdown, 2500)
+        {:showdown, %{play | current_hand: hand}}
+
+      :no_more_pots ->
+        {:done, play}
+    end
+  end
+
+  defp maybe_showdown(%{current_hand: %{street: :folded}} = play) do
+    Process.send_after(self(), :next_hand, 2500)
+    {:done, play}
+  end
+
+  defp maybe_showdown(play), do: {:ignore, play}
 end

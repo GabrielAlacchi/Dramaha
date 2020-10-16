@@ -4,47 +4,17 @@
 }
 
 .pot--entry {
+  position: relative;
+  width: 6.5em;
+}
+
+.pot--split {
+  transition: transform ease 500ms;
+  position: absolute;
   display: flex;
   margin: 0.5em;
   
   h2 {
     margin-right: 0.2em;
   }
-}
-
-.pot--entry.won {
-  transition: all ease 1s;
-  right: 100%;
-  bottom: 0%;
-}
-
-.pot--entry.won[data-position="1"] {
-  transform: translate(100px, 100px);
-  left: calc(50% - 3.5em);
-  bottom: 15%;
-}
-
-.pot--entry.won[data-position="2"] {
-  left: 15%;
-  bottom: 25%;
-}
-
-.pot--entry.won[data-position="3"] {
-  left: 15%;
-  top: 25%;
-}
-
-.pot--entry.won[data-position="4"] {
-  left: calc(50% - 3.5em);
-  top: 10%;
-}
-
-.pot--entry.won[data-position="5"] {
-  right: 0%;
-  top: 25%;
-}
-
-.pot--entry.won[data-position="6"] {
-  right: 0%;
-  bottom: 30%;
 }
