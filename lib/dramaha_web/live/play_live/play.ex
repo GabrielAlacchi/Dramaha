@@ -101,6 +101,9 @@ defmodule DramahaWeb.PlayLive.Play do
           state
       end
 
+    us = Enum.find(state.players, fn player -> player.player_id == socket.assigns.player.id end)
+
     assign(socket, :state, state)
+    |> assign(:us, us)
   end
 end

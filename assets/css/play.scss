@@ -301,3 +301,10 @@ div[data-phx-main=true] {
 .call {
   background: $actionCall;
 }
+
+.session-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: row-reverse;  
+  padding: 1em;
+}

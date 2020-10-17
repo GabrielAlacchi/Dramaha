@@ -1,0 +1,7 @@
+<section class="session-actions">
+  <%= if @us.sitting_out do %>
+    <button class="btn btn-action" phx-target="<%= @myself %>" phx-click="sit_in" phx-disable-with="Updating...">I'm back</button>
+  <% else %>
+    <button class="btn btn-action aggressive" phx-target="<%= @myself %>" phx-click="sit_out">Sit Out</button>
+  <% end %>
+</section>

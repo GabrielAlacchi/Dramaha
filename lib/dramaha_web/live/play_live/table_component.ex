@@ -7,13 +7,10 @@ defmodule DramahaWeb.PlayLive.TableComponent do
 
   use DramahaWeb, :live_component
 
-  def update(%{state: state, player: %{id: id}} = assigns, socket) do
-    us = Enum.find(state.players, &(&1.player_id == id))
-
+  def update(%{state: state, us: us} = assigns, socket) do
     socket =
       socket
       |> assign(assigns)
-      |> assign(:us, us)
       |> assign(:seat_shift, us.seat - 1)
       |> assign_seats(state)
 

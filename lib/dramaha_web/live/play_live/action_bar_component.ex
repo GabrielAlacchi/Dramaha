@@ -29,7 +29,7 @@ defmodule DramahaWeb.PlayLive.ActionBarComponent do
         false
 
       hand ->
-        State.our_turn?(hand, us.id)
+        State.our_turn?(hand, us.player_id)
     end
   end
 

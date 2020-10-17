@@ -12,9 +12,9 @@ defmodule Dramaha.Play do
   @type call() ::
           :query_state
           | {:new_player, Dramaha.Sessions.Player.t()}
-          | {:update_sitout, Dramaha.Sessions.Player.t()}
+          | {:update_sitout, integer(), boolean()}
           | {:configure_session, String.t(), Actions.Config.t()}
-          | {:play_action, Dramaha.Sessions.Player.t(), Actions.action()}
+          | {:play_action, Dramaha.Game.Player.t(), Actions.action()}
 
   @spec __struct__ :: Dramaha.Play.t()
   defstruct players: [],
@@ -94,14 +94,13 @@ defmodule Dramaha.Play do
   end
 
   @impl true
-  def handle_call({:update_sitout, db_player}, _from, %{players: players} = play) do
+  def handle_call({:update_sitout, player_id, sitting_out}, _from, %{players: players} = play) do
     {_, i} =
       Enum.with_index(players)
-      |> Enum.filter(fn {player, _} -> player.player_id == db_player.id end)
+      |> Enum.filter(fn {player, _} -> player.player_id == player_id end)
       |> List.first()
 
-    players =
-      List.update_at(players, i, fn player -> %{player | sitting_out: db_player.sitting_out} end)
+    players = List.update_at(players, i, fn player -> %{player | sitting_out: sitting_out} end)
 
     play = start_new_hand(%{play | players: players})
     Sessions.broadcast_update(play.uuid)
@@ -115,7 +114,7 @@ defmodule Dramaha.Play do
         {:reply, play, play}
 
       hand ->
-        if !State.our_turn?(hand, from_player.id) do
+        if !State.our_turn?(hand, from_player.player_id) do
           {:reply, play, play}
         else
           play = play_action(play, action)

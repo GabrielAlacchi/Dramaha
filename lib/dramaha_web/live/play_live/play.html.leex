@@ -1,4 +1,6 @@
 <section id="game" class="game">
-  <%= live_component(@socket, DramahaWeb.PlayLive.TableComponent, id: :table, state: @state, play_context: @play_context, player: @player) %>
-  <%= live_component(@socket, DramahaWeb.PlayLive.ActionBarComponent, id: :action_bar, session: @session, play_context: @play_context, state: @state, us: @player) %>
+  <%= live_component(@socket, DramahaWeb.PlayLive.SessionActionsComponent, id: :session_actions, session: @session, state: @state, us: @us) %>
+
+  <%= live_component(@socket, DramahaWeb.PlayLive.TableComponent, id: :table, state: @state, play_context: @play_context, us: @us) %>
+  <%= live_component(@socket, DramahaWeb.PlayLive.ActionBarComponent, id: :action_bar, session: @session, play_context: @play_context, state: @state, us: @us) %>
 </section>
