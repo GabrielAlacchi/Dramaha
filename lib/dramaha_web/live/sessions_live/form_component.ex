@@ -1,6 +1,7 @@
 defmodule DramahaWeb.SessionsLive.FormComponent do
   use DramahaWeb, :live_component
   alias Dramaha.Sessions
+  alias DramahaWeb.Router.Helpers, as: Routes
 
   @impl true
   def update(%{session: session} = assigns, socket) do
@@ -24,8 +25,11 @@ defmodule DramahaWeb.SessionsLive.FormComponent do
 
   def handle_event("create", %{"session" => session_params}, socket) do
     case Sessions.create_session(session_params) do
-      {:ok, _session} ->
-        {:noreply, socket}
+      {:ok, session} ->
+        redirect_to =
+          Routes.live_path(DramahaWeb.Endpoint, DramahaWeb.SessionsLive.Join, session.uuid)
+
+        {:noreply, redirect(socket, to: redirect_to)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :changeset, changeset)}

@@ -33,6 +33,7 @@ defmodule DramahaWeb.PlayLive.Play do
 
         {:ok,
          assign(socket, :player, player)
+         |> assign(:page_title, "Play - Dramaha")
          |> assign(:session, session)
          |> assign(:play_context, %Context{})
          |> assign_play_state()}

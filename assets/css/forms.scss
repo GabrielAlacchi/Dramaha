@@ -1,0 +1,27 @@
+
+.btn-submit {
+  font-size: 1.5rem;
+  padding: 0.5em;
+}
+
+.form-group {
+  font-size: 1.2rem;
+  width: 400px;
+  padding: 0.2em 0;
+
+  label {
+    display: block;
+    font-size: 1.2em;
+    padding: 0.5em 0;
+  }
+
+  .form-control {
+    display: block;
+    padding: 0.2em;
+  }
+
+  .error-group:not(:empty) {
+    color: #ff0033;
+    padding: 0.2em;
+  }
+}

@@ -3,16 +3,6 @@ defmodule DramahaWeb.SessionsLive.JoinFormComponent do
   alias Dramaha.Sessions
 
   @impl true
-  def update(%{session: session} = assigns, socket) do
-    changeset = Sessions.join_session_changeset(session)
-
-    {:ok,
-     socket
-     |> assign(assigns)
-     |> assign(:changeset, changeset)}
-  end
-
-  @impl true
   def handle_event("validate", %{"player" => player_attrs}, socket) do
     changeset =
       socket.assigns.session

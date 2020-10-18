@@ -1,3 +1,7 @@
-<h1>Join this Dramaha Session</h1>
+<section class="container">
+  <div class="join-form">
+    <h1>Join this Dramaha Session</h1>
 
-<%= live_component(@socket, DramahaWeb.SessionsLive.JoinFormComponent, id: :new_session_form, session: @session) %>
+    <%= live_component(@socket, DramahaWeb.SessionsLive.JoinFormComponent, id: :new_session_form, session: @session, changeset: @changeset) %>
+  </div>
+</section>

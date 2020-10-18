@@ -13,14 +13,24 @@ defmodule Dramaha.Sessions do
   def get_session_by_uuid(uuid), do: Repo.get_by(Session, uuid: uuid)
 
   def create_session(attrs) do
-    session =
+    session_changeset =
       %Session{uuid: UUID.uuid4()}
       |> Session.changeset(attrs)
-      |> Repo.insert()
 
-    configure_gameserver(session)
+    multi =
+      Multi.new()
+      |> Multi.insert(:session, session_changeset)
+      |> Multi.run(:configure_server, fn _, %{session: session} ->
+        {:ok, configure_gameserver(session)}
+      end)
 
-    session
+    case Repo.transaction(multi) do
+      {:ok, %{session: session}} ->
+        {:ok, session}
+
+      {:error, :session, changeset, _} ->
+        {:error, changeset}
+    end
   end
 
   def change_session(%Session{} = session, attrs \\ %{}) do

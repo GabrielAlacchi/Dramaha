@@ -1,24 +1,13 @@
 <%= f = form_for @changeset, "#",
-    id: "post-form",
-    phx_target: @myself,
-    phx_change: "validate",
-    phx_submit: "create" %>
+                 id: "post-form",
+                 phx_target: @myself,
+                 phx_change: "validate",
+                 phx_submit: "create" %>
 
-    <%= label f, :small_blind, "Small Blind" %>
-    <%= number_input f, :small_blind %>
-    <%= error_tag f, :small_blind %>
+  <%= live_component(@socket, DramahaWeb.Components.FormGroupComponent, form: f, key: :small_blind, label: "Small Blind", input_type: :number) %>
+  <%= live_component(@socket, DramahaWeb.Components.FormGroupComponent, form: f, key: :big_blind, label: "Big Blind", input_type: :number) %>
+  <%= live_component(@socket, DramahaWeb.Components.FormGroupComponent, form: f, key: :min_buy_in, label: "Minimum Buy In", input_type: :number) %>
+  <%= live_component(@socket, DramahaWeb.Components.FormGroupComponent, form: f, key: :max_buy_in, label: "Maximum Buy In", input_type: :number) %>
 
-    <%= label f, :big_blind, "Big Blind" %>
-    <%= number_input f, :big_blind %>
-    <%= error_tag f, :big_blind %>
-
-    <%= label f, :min_buy_in, "Minimum Buy In" %>
-    <%= number_input f, :min_buy_in %>
-    <%= error_tag f, :min_buy_in %>
-
-    <%= label f, :max_buy_in, "Maximum Buy In" %>
-    <%= number_input f, :max_buy_in %>
-    <%= error_tag f, :max_buy_in %>
-
-    <%= submit "create", phx_disable_with: "Creating..." %>
+  <%= submit "create", class: "btn btn-submit", phx_disable_with: "Creating..." %>
 </form>

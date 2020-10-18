@@ -7,7 +7,7 @@ defmodule DramahaWeb.SessionsLive.Join do
   alias Dramaha.Sessions
 
   @impl true
-  def mount(%{"session_uuid" => uuid} = _params, live_session, socket) do
+  def mount(%{"session_uuid" => uuid} = params, live_session, socket) do
     {uuid, socket} =
       case live_session do
         # This will lead to a redirect in handle_params
@@ -20,7 +20,11 @@ defmodule DramahaWeb.SessionsLive.Join do
 
     session = Sessions.get_session_by_uuid(uuid)
 
-    {:ok, socket |> assign(:session, session)}
+    {:ok,
+     socket
+     |> assign(:session, session)
+     |> assign(:page_title, "Join a Session - Dramaha")
+     |> assign_join_changeset(params)}
   end
 
   @impl true
@@ -35,5 +39,26 @@ defmodule DramahaWeb.SessionsLive.Join do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  defp assign_join_changeset(socket, params) do
+    attrs = Map.take(params, ["display_name", "current_stack"])
+
+    changeset =
+      Sessions.join_session_changeset(socket.assigns.session, attrs)
+      |> Map.put(:action, :validate)
+
+    changeset =
+      cond do
+        Map.has_key?(params, "name_taken") && params["name_taken"] == "true" ->
+          changeset
+          |> Ecto.Changeset.add_error(:display_name, "This display name is already in use")
+
+        true ->
+          changeset
+      end
+
+    socket
+    |> assign(:changeset, changeset)
   end
 end
