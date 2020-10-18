@@ -384,7 +384,7 @@ defmodule Dramaha.Play do
   defp maybe_showdown(%{current_hand: %{street: :showdown}} = play) do
     case Hand.handle_next_showdown(play.current_hand) do
       {:ok, hand} ->
-        Process.send_after(self(), :next_showdown, 5000)
+        Process.send_after(self(), :next_showdown, 10000)
         {:showdown, %{play | current_hand: hand}}
 
       :no_more_pots ->
