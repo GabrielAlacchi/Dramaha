@@ -270,8 +270,7 @@ defmodule Dramaha.Game.Actions do
     # Update board hand evaluation for every player that is still in the hold
     updated_players =
       Enum.map(state.players, fn player ->
-        updated = Player.update_board_hand(player, updated_board)
-        %{updated | last_street_action: nil}
+        Player.update_board_hand(player, updated_board)
       end)
 
     updated_state = %{
@@ -279,17 +278,10 @@ defmodule Dramaha.Game.Actions do
       | awaiting_deal: false,
         players: updated_players,
         deck: deck,
-        board: updated_board,
-        street: State.next_street(street)
+        board: updated_board
     }
 
-    cond do
-      State.racing?(updated_state) && !State.draw_street?(updated_state) ->
-        %{updated_state | awaiting_deal: true}
-
-      true ->
-        updated_state
-    end
+    State.start_new_round(updated_state)
   end
 
   # Draw no cards is a no-op except moving to the next player
@@ -431,14 +423,23 @@ defmodule Dramaha.Game.Actions do
     pot_size_bet = pot.full_pot + pot.committed + call_value + call_total_size
     max_bet = min(pot_size_bet, stack + player_bet)
 
+    # If all other players are either all in or folded we can't raise, we can only call
+    # Alternatively if our bet matches the last aggressor's bet we can only fold or call.
+    # The latter case happens if players went all in for under a legal raise.
+    cant_raise? =
+      Enum.all?(
+        state.players,
+        &(&1.player_id == player.player_id || Player.all_in?(&1) || Player.folded?(&1))
+      ) || last_aggressor.bet == player_bet
+
     cond do
       # It's limped to us and we have option
       player.has_option && call_value == 0 ->
         [:option_check, {:raise, min_bet}, max_bet_action(max_bet, stack, :raise, player_bet)]
 
       # We don't have enough for any raise, either fold or call all in
-      stack <= call_value ->
-        [:fold, {:call, stack}]
+      stack <= call_value || cant_raise? ->
+        [:fold, {:call, min(stack, call_value)}]
 
       # We don't have enough to make a legal raise, we can either fold, call or commit the rest of our stack
       # If we have just enough to legally raise, it's the same.

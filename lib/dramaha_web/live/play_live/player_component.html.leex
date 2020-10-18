@@ -4,7 +4,7 @@
     <p><%= @player.name %></p>
     <%= if @sitting_out? do %>
       <p>(Sitting Out)</p>
-    <%= else %>
+    <% else %>
       <p><%= @stack %></p>
     <% end %>
   </div>

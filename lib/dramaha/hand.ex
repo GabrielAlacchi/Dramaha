@@ -128,14 +128,14 @@ defmodule Dramaha.Hand do
   defp close_betting_round(%{players: players, pot: pot, street: street} = state) do
     {updated_pot, updated_players} = Pot.gather_bets(pot, players)
 
-    next_state = State.start_new_round(%{state | players: updated_players, pot: updated_pot})
+    next_state = %{state | players: updated_players, pot: updated_pot}
 
     cond do
       street == :river ->
         %{next_state | awaiting_deal: false, street: :showdown}
 
       street == :flop ->
-        %{next_state | awaiting_deal: false, street: :draw}
+        State.start_new_round(%{next_state | awaiting_deal: false})
 
       street == :draw_race || street == :turn_race ->
         flip_cards_for_race(%{next_state | awaiting_deal: true})
@@ -192,6 +192,9 @@ defmodule Dramaha.Hand do
     }
 
     cond do
+      next_street == :draw_race ->
+        %{updated_state | player_turn: State.first_player_for_round(updated_state)}
+
       next_street == :turn_race ->
         flip_cards_for_race(updated_state)
 

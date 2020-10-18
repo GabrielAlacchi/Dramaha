@@ -56,6 +56,7 @@ defmodule DramahaWeb.PlayLive.PotComponent do
     showdown_players =
       Enum.map(hand.showdowns, fn showdown ->
         Enum.zip(showdown.players, showdown.won_chips)
+        |> Enum.filter(fn {_, chips} -> chips > 0 end)
         |> Enum.map(fn {player_idx, chips} ->
           player = Enum.at(hand.players, player_idx)
           shifted_seat = player.seat - seat_shift

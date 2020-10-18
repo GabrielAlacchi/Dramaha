@@ -44,8 +44,10 @@ defmodule Dramaha.Game.Pot do
         pot_and_sidepots -> pot_and_sidepots ++ other_pots
       end
 
+    future_pot = %{updated_pot | pots: pot_entries}
+
     {
-      %{updated_pot | pots: pot_entries},
+      future_pot,
       Enum.map(players, &%{&1 | bet: 0})
     }
   end
@@ -106,14 +108,29 @@ defmodule Dramaha.Game.Pot do
   defp update_pot_entry({required_commit, pot_size}, players) do
     # Find the smallest bet made by any non-folded player
     # (essentially what is the smallest all in)
+
+    players_that_bet =
+      Enum.filter(players, fn player ->
+        player.bet > 0
+      end)
+
+    all_in_players =
+      Enum.filter(players, &(Player.all_in?(&1) && &1.committed == required_commit))
+
     min_committed_bet =
-      Enum.filter(players, &(&1.bet > 0 && !Player.folded?(&1)))
+      players_that_bet
+      |> Enum.filter(&(!Player.folded?(&1)))
       |> Enum.map(& &1.bet)
       |> Enum.min(fn -> 0 end)
 
     # We still need to keep track of folded players in our calculations because
     # they may still contribute to the gathering of the pot.
     cond do
+      # Leave the current main pot untouched, create a new side pots with the players that actively bet in this round
+      length(all_in_players) > 0 ->
+        sidepots = update_pot_entry({required_commit, 0}, players_that_bet)
+        Enum.filter(sidepots ++ [{required_commit, pot_size}], fn {_, chips} -> chips > 0 end)
+
       min_committed_bet == 0 ->
         [{required_commit, pot_size}]
 

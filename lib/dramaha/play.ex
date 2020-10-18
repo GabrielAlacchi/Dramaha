@@ -129,7 +129,7 @@ defmodule Dramaha.Play do
 
           updated_hand =
             cond do
-              hsp_index > -1 ->
+              hsp_index != nil ->
                 updated_players =
                   List.update_at(hand.players, hsp_index, &%{&1 | sitting_out: sitting_out})
 
@@ -182,6 +182,7 @@ defmodule Dramaha.Play do
 
       true ->
         play = apply_addon(play, {player_id, addon_chips})
+        Sessions.broadcast_update(play.uuid)
         {:reply, play, play}
     end
   end
@@ -264,6 +265,8 @@ defmodule Dramaha.Play do
   end
 
   def handle_info(:next_showdown, play) do
+    Logger.info("Handling next showdown")
+
     case play.current_hand do
       %{street: :showdown} ->
         case maybe_showdown(play) do
@@ -273,6 +276,7 @@ defmodule Dramaha.Play do
             {:noreply, play}
 
           {_, play} ->
+            Sessions.broadcast_update(play.uuid)
             {:noreply, play}
         end
 
@@ -380,7 +384,7 @@ defmodule Dramaha.Play do
   defp maybe_showdown(%{current_hand: %{street: :showdown}} = play) do
     case Hand.handle_next_showdown(play.current_hand) do
       {:ok, hand} ->
-        Process.send_after(self(), :next_showdown, 2500)
+        Process.send_after(self(), :next_showdown, 5000)
         {:showdown, %{play | current_hand: hand}}
 
       :no_more_pots ->
@@ -389,7 +393,7 @@ defmodule Dramaha.Play do
   end
 
   defp maybe_showdown(%{current_hand: %{street: :folded}} = play) do
-    Process.send_after(self(), :next_hand, 2500)
+    Process.send_after(self(), :next_hand, 1500)
     {:done, play}
   end
 
@@ -403,10 +407,10 @@ defmodule Dramaha.Play do
 
     seconds_timeout =
       case hand.street do
-        :flop -> 30
-        :turn -> 45
-        :river -> 75
-        _ -> 20
+        :flop -> 2000
+        :turn -> 2000
+        :river -> 2000
+        _ -> 2000
       end
 
     timer_ref =

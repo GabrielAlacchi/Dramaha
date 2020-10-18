@@ -6,7 +6,7 @@ const targetRelativePos = {
   "3": { x: 0.15, y: 0.25, xRef: 'left', yRef: 'top' },
   "4": { x: 0.5, y: 0.15, xRef: 'center', yRef: 'top' },
   "5": { x: 0, y: 0.25, xRef: 'right', yRef: 'top' },
-  "6": { x: 0, y: 0.30, xRef: 'right', yRef: 'bottom' }
+  "6": { x: 0.05, y: 0.4, xRef: 'right', yRef: 'bottom' }
 }
 
 const emptyTransform = (potSplit) => {

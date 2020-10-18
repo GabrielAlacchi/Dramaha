@@ -83,7 +83,24 @@ defmodule Dramaha.Game.State do
 
   @spec start_new_round(t()) :: t()
   def start_new_round(state) do
-    %{state | player_turn: first_player_for_round(state), last_aggressor: nil, last_caller: nil}
+    updated_players = Enum.map(state.players, &%{&1 | last_street_action: nil})
+
+    updated_state = %{
+      state
+      | players: updated_players,
+        last_aggressor: nil,
+        last_caller: nil,
+        street: next_street(state.street),
+        awaiting_deal: false
+    }
+
+    cond do
+      updated_state.street == :turn_race ->
+        %{updated_state | awaiting_deal: true}
+
+      true ->
+        %{updated_state | player_turn: first_player_for_round(updated_state)}
+    end
   end
 
   @spec first_player_for_round(t()) :: integer()
