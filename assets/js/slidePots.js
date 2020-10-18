@@ -2,7 +2,7 @@
 // Positions to slide pots to relative to the table
 const targetRelativePos = {
   "1": { x: 0.5, y: 0.24, xRef: 'center', yRef: 'bottom' },
-  "2": { x: 0.15, y: 0.25, xRef: 'left', yRef: 'bottom' },
+  "2": { x: 0.15, y: 0.4, xRef: 'left', yRef: 'bottom' },
   "3": { x: 0.15, y: 0.25, xRef: 'left', yRef: 'top' },
   "4": { x: 0.5, y: 0.15, xRef: 'center', yRef: 'top' },
   "5": { x: 0, y: 0.25, xRef: 'right', yRef: 'top' },

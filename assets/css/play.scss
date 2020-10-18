@@ -173,6 +173,46 @@ div[data-phx-main=true] {
   justify-items: center;
 }
 
+.player--bet {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  color: $bgColor;
+  font-size: 0.8em;
+
+  .chip {
+    margin-left: 0.2em;
+  }
+}
+
+.seat[data-position="1"] .player--bet {
+  bottom: calc(100% + 0.5em);
+}
+
+.seat[data-position="2"] .player--bet {
+  bottom: calc(100% + 0.35em);
+  left: calc(100% + 0.35em)
+}
+
+.seat[data-position="3"] .player--bet {
+  top: calc(100% + 0.35em);
+  left: calc(100% + 0.35em)
+}
+
+.seat[data-position="4"] .player--bet {
+  top: calc(100% + 0.5em);
+}
+
+.seat[data-position="5"] .player--bet {
+  top: calc(100% + 0.35em);
+  right: calc(100% + 0.35em);
+}
+
+.seat[data-position="6"] .player--bet {
+  bottom: calc(100% + 0.35em);
+  right: calc(100% + 0.35em)
+}
+
 .player--hand {
   position: relative;
   width: 100%;

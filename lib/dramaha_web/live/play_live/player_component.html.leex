@@ -1,4 +1,10 @@
 <div class="player <%= if @turn?, do: "turn" %>" data-stack-size="<%= @player.stack %>">
+  <%= if @hand_state_player != nil && @hand_state_player.bet > 0 do %>
+    <div class="player--bet">
+      <h2><%= @hand_state_player.bet %></h2>
+      <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: @hand_state_player.bet) %>
+    </div>
+  <% end %>
   <%= live_component(@socket, DramahaWeb.PlayLive.PlayerHandComponent, cards: @cards, selectable?: @selectable?, play_context: @play_context) %>
   <div class="player--stack">
     <p><%= @player.name %></p>

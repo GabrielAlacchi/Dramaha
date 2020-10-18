@@ -9,16 +9,15 @@
       <div class="pot--entry">
         <div class="pot--split">
         <h2><%= pot_size %></h2>
-        <div class="chip <%= chip_color_class(pot_size) %>"></div>
-        </div>
+        <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: pot_size) %>
       </div>
     <% end %>
     <%= for {{_, players}, idx} <- Enum.with_index(@showdowns) do %>
       <div class="pot--entry won" id="showdown-<%= idx %>">
         <%= for {seat, chips} <- players do %>
           <div class="pot--split" data-target-seat="<%= seat %>">
-              <h2><%= chips %></h2>
-              <div class="chip <%= chip_color_class(chips) %>"></div>
+            <h2><%= chips %></h2>
+            <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: chips) %>
           </div>
         <% end %>
       </div>
