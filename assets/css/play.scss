@@ -386,4 +386,8 @@ div[data-phx-main=true] {
   display: flex;
   flex-direction: row-reverse;  
   padding: 1em;
+
+  .btn {
+    margin-left: 0.5em;
+  }
 }

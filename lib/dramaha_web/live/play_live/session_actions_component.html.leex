@@ -4,4 +4,5 @@
   <% else %>
     <button class="btn btn-action aggressive" phx-target="<%= @myself %>" phx-click="sit_out">Sit Out</button>
   <% end %>
+  <button class="btn btn-action" phx-target="<%= @myself %>" phx-click="addon_max" phx-disable-with="Addon Pending...">Addon to the Max</button>
 </section>

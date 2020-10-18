@@ -30,4 +30,11 @@ defmodule DramahaWeb.PlayLive.SessionActionsComponent do
 
     {:noreply, socket}
   end
+
+  def handle_event("addon_max", _, socket) do
+    Sessions.call_gameserver(
+      socket.assigns.session,
+      {:add_on, socket.assigns.us.player_id, socket.assigns.session.max_buy_in}
+    )
+  end
 end
