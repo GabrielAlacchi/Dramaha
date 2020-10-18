@@ -16,12 +16,16 @@ import "phoenix_html"
 import { Socket } from "phoenix"
 import NProgress from "nprogress"
 import { LiveSocket } from "phoenix_live_view"
+import { TimeBar } from "./hooks";
 
 import "./slider"
 import "./slidePots"
 
+let hooks = {}
+hooks.TimeBar = TimeBar;
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken } })
+let liveSocket = new LiveSocket("/live", Socket, { hooks, params: { _csrf_token: csrfToken } })
 
 // Show progress bar on live navigation and form submits
 window.addEventListener("phx:page-loading-start", info => NProgress.start())

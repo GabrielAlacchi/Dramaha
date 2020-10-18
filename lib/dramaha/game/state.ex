@@ -120,6 +120,11 @@ defmodule Dramaha.Game.State do
     end
   end
 
+  @spec in_hand?(t(), integer()) :: boolean()
+  def in_hand?(state, player_id) do
+    Enum.find(state.players, &(&1.player_id == player_id)) != nil
+  end
+
   @spec current_call_size(t()) :: integer()
   @doc """
   Gets the total size of calling currently

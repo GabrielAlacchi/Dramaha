@@ -22,13 +22,15 @@ defmodule Dramaha.Game.Actions do
           | {:raise, integer()}
           | {:all_in, integer()}
           | {:call, integer()}
+
+          # Drawing
           | {:draw, list(Card.t())}
           # Actions representing a draw 1 scenario where every player can see what the player drew
           # and the player has to decide to keep or throw it.
           | :keep
           | :throw
 
-          # Played by a player
+          # Not played by players
           | :deal
 
   defmodule Config do
@@ -268,7 +270,8 @@ defmodule Dramaha.Game.Actions do
     # Update board hand evaluation for every player that is still in the hold
     updated_players =
       Enum.map(state.players, fn player ->
-        Player.update_board_hand(player, updated_board)
+        updated = Player.update_board_hand(player, updated_board)
+        %{updated | last_street_action: nil}
       end)
 
     updated_state = %{
@@ -453,6 +456,18 @@ defmodule Dramaha.Game.Actions do
           {:raise, min_bet},
           max_bet_action(max_bet, stack, :raise, player_bet)
         ]
+    end
+  end
+
+  @spec default_action(State.t()) :: action()
+  def default_action(state) do
+    case available_actions(state) do
+      [:fold | _] -> :fold
+      [:check | _] -> :check
+      [:option_check | _] -> :option_check
+      # Draw Situations
+      [{:draw, []}] -> {:draw, []}
+      [:keep, :throw] -> :keep
     end
   end
 

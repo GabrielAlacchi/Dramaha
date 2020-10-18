@@ -128,10 +128,6 @@ defmodule Dramaha.Hand do
   defp close_betting_round(%{players: players, pot: pot, street: street} = state) do
     {updated_pot, updated_players} = Pot.gather_bets(pot, players)
 
-    # Reset the last street action going into the next betting street
-    updated_players =
-      Enum.map(updated_players, fn player -> %{player | last_street_action: nil} end)
-
     next_state = State.start_new_round(%{state | players: updated_players, pot: updated_pot})
 
     cond do

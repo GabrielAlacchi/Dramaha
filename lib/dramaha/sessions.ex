@@ -75,6 +75,43 @@ defmodule Dramaha.Sessions do
     end
   end
 
+  @spec update_player_sitout(integer(), boolean()) :: any()
+  def update_player_sitout(player_id, sitting_out) do
+    from(p in Player,
+      where: p.id == ^player_id,
+      update: [set: [sitting_out: ^sitting_out]]
+    )
+    |> Repo.update_all([])
+  end
+
+  @spec update_player_stack(integer(), integer(), integer()) :: boolean()
+  def update_player_stack(player_id, updated_stack, addon_amount) do
+    multi =
+      Multi.new()
+      |> Multi.run(:buy_in, fn _, _ ->
+        %BuyIn{player_id: player_id, amount: addon_amount}
+        |> Repo.insert()
+      end)
+      |> Multi.run(:player, fn _, _ ->
+        result =
+          from(p in Player,
+            where: p.id == ^player_id,
+            update: [set: [current_stack: ^updated_stack]]
+          )
+          |> Repo.update_all([])
+
+        case result do
+          {0, _} -> {:error, :update_failure}
+          {x, _} -> {:ok, x}
+        end
+      end)
+
+    case Repo.transaction(multi) do
+      {:ok, _} -> true
+      _ -> false
+    end
+  end
+
   def subscribe(%{uuid: uuid}) do
     Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{uuid}")
   end
@@ -112,7 +149,7 @@ defmodule Dramaha.Sessions do
            {Dramaha.Play, name: via_registry(session.uuid)}
          ) do
       {:ok, pid} ->
-        GenServer.call(pid, {:configure_session, session.uuid, config})
+        GenServer.call(pid, {:configure_session, session.uuid, config, session.max_buy_in})
         pid
 
       {:error, {:already_started, pid}} ->

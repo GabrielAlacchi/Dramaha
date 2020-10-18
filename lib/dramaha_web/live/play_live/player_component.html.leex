@@ -8,6 +8,9 @@
       <p><%= @stack %></p>
     <% end %>
   </div>
+  <%= if @turn? && @state.action_timeout_ref != nil do %>
+    <%= live_component(@socket, DramahaWeb.PlayLive.TimeBarComponent, state: @state, player: @player) %>
+  <% end %>
   <%= if @action != nil do %>
     <%= live_component(
       @socket,

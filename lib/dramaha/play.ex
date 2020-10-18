@@ -3,32 +3,47 @@ defmodule Dramaha.Play do
   GenServer which manages the state of a game session
   """
   use GenServer, restart: :transient
+  require Logger
 
+  alias Dramaha.Replay
   alias Dramaha.Game.State
   alias Dramaha.Game.Actions
   alias Dramaha.Hand
   alias Dramaha.Sessions
 
+  @type addon() :: {integer(), integer()}
+
   @type call() ::
           :query_state
           | {:new_player, Dramaha.Sessions.Player.t()}
           | {:update_sitout, integer(), boolean()}
-          | {:configure_session, String.t(), Actions.Config.t()}
+          | {:configure_session, String.t(), Actions.Config.t(), integer()}
           | {:play_action, Dramaha.Game.Player.t(), Actions.action()}
+          | {:add_on, integer(), integer()}
 
   @spec __struct__ :: Dramaha.Play.t()
   defstruct players: [],
             current_hand: nil,
             button_seat: 1,
             uuid: "",
-            bet_config: %Actions.Config{small_blind: 1, big_blind: 1}
+            max_buy_in: 0,
+            bet_config: %Actions.Config{small_blind: 1, big_blind: 1},
+            action_timeout_ref: nil,
+            action_timeout_stamp: nil,
+            action_timeout_seconds: nil,
+            pending_addons: []
 
   @type t() :: %__MODULE__{
           players: list(Dramaha.Game.Player.t()),
           current_hand: State.t() | nil,
           button_seat: Dramaha.Game.Player.seat(),
           uuid: String.t(),
-          bet_config: Actions.Config.t()
+          max_buy_in: integer(),
+          bet_config: Actions.Config.t(),
+          action_timeout_ref: non_neg_integer() | nil,
+          action_timeout_stamp: DateTime.t() | nil,
+          action_timeout_seconds: integer() | nil,
+          pending_addons: list(addon())
         }
 
   @spec start_link([
@@ -62,8 +77,8 @@ defmodule Dramaha.Play do
   end
 
   @impl true
-  def handle_call({:configure_session, uuid, bet_config}, _from, play) do
-    play = %{play | bet_config: bet_config, uuid: uuid}
+  def handle_call({:configure_session, uuid, bet_config, max_buy_in}, _from, play) do
+    play = %{play | bet_config: bet_config, uuid: uuid, max_buy_in: max_buy_in}
     {:reply, play, play}
   end
 
@@ -102,7 +117,42 @@ defmodule Dramaha.Play do
 
     players = List.update_at(players, i, fn player -> %{player | sitting_out: sitting_out} end)
 
-    play = start_new_hand(%{play | players: players})
+    play = %{play | players: players}
+
+    play =
+      case play.current_hand do
+        nil ->
+          start_new_hand(play)
+
+        hand ->
+          hsp_index = Enum.find_index(hand.players, fn %{player_id: id} -> id == player_id end)
+
+          updated_hand =
+            cond do
+              hsp_index > -1 ->
+                updated_players =
+                  List.update_at(hand.players, hsp_index, &%{&1 | sitting_out: sitting_out})
+
+                %{hand | players: updated_players}
+
+              true ->
+                hand
+            end
+
+          if State.current_player(updated_hand).player_id == player_id do
+            play_action(
+              %{play | current_hand: updated_hand},
+              Actions.default_action(updated_hand)
+            )
+          else
+            %{play | current_hand: updated_hand}
+          end
+      end
+
+    Task.start(fn ->
+      Sessions.update_player_sitout(player_id, sitting_out)
+    end)
+
     Sessions.broadcast_update(play.uuid)
     {:reply, play, play}
   end
@@ -120,6 +170,19 @@ defmodule Dramaha.Play do
           play = play_action(play, action)
           {:reply, play, play}
         end
+    end
+  end
+
+  @impl true
+  def handle_call({:add_on, player_id, addon_chips}, _from, play) do
+    cond do
+      play.current_hand != nil && State.in_hand?(play.current_hand, player_id) ->
+        play = merge_addon(play, {player_id, addon_chips})
+        {:reply, play, play}
+
+      true ->
+        play = apply_addon(play, {player_id, addon_chips})
+        {:reply, play, play}
     end
   end
 
@@ -141,14 +204,15 @@ defmodule Dramaha.Play do
         [sb, bb] = positioned_by_button
         hand = Dramaha.Hand.start([bb, sb], bet_config)
         Sessions.broadcast_update(play.uuid, :new_hand)
-        %{play | current_hand: hand, button_seat: sb.seat}
+        action_timeout(%{play | current_hand: hand, button_seat: sb.seat})
 
       length(sitin_players) >= 2 ->
         hand = Dramaha.Hand.start(positioned_by_button, bet_config)
         Sessions.broadcast_update(play.uuid, :new_hand)
-        %{play | current_hand: hand}
+        action_timeout(%{play | current_hand: hand})
 
       true ->
+        Sessions.broadcast_update(play.uuid)
         play
     end
   end
@@ -160,14 +224,28 @@ defmodule Dramaha.Play do
   defp play_action(play, action) do
     case Hand.play_action(play.current_hand, action) do
       {:ok, state} ->
-        play = %{play | current_hand: state}
-        play = maybe_deal(play)
+        play = clear_action_timeout(%{play | current_hand: state})
 
-        case maybe_showdown(play) do
-          {_, play} ->
-            Sessions.broadcast_update(play.uuid)
-            play
-        end
+        play =
+          case state do
+            %{awaiting_deal: true} ->
+              maybe_deal(play)
+
+            %{street: street} when street == :showdown or street == :folded ->
+              {_, play} = maybe_showdown(play)
+              play
+
+            _ ->
+              if State.current_player(state).sitting_out do
+                play_action(play, Actions.default_action(state))
+              else
+                action_timeout(play)
+              end
+          end
+
+        Sessions.broadcast_update(play.uuid)
+
+        play
 
       {:invalid_action, _} ->
         play
@@ -207,6 +285,36 @@ defmodule Dramaha.Play do
     {:noreply, end_hand(play)}
   end
 
+  def handle_info({:action_timeout, timed_out_id}, play) do
+    player_idx = play.current_hand.player_turn
+    current_player = State.current_player(play.current_hand)
+
+    # Check for a stale timeout (one that fired while processing the action of a player).
+    if timed_out_id == current_player.player_id do
+      Logger.info("[Dramaha.Play] Action timeout for Seat #{current_player.seat}")
+
+      # Set the player's status to sitting out
+      updated_hand_state = %{
+        play.current_hand
+        | players:
+            List.update_at(play.current_hand.players, player_idx, &%{&1 | sitting_out: true})
+      }
+
+      sess_player_idx = Enum.find_index(play.players, &(&1.player_id == current_player.player_id))
+
+      updated_session_players =
+        List.update_at(play.players, sess_player_idx, &%{&1 | sitting_out: true})
+
+      play = %{play | current_hand: updated_hand_state, players: updated_session_players}
+      play = play_action(play, Actions.default_action(play.current_hand))
+
+      {:noreply, play}
+    else
+      # If we have a stale timeout
+      {:noreply, play}
+    end
+  end
+
   @spec end_hand(t()) :: t()
   defp end_hand(play) do
     players =
@@ -230,8 +338,23 @@ defmodule Dramaha.Play do
     next_btn = Enum.find(sitting_in, &(&1.seat > play.button_seat))
 
     next_btn = next_btn || Enum.find(sitting_in, &(&1.seat > play.button_seat - 6))
+    next_btn = next_btn || %{seat: play.button_seat}
 
-    start_new_hand(%{play | button_seat: next_btn.seat, current_hand: nil})
+    post_addons = Enum.reduce(play.pending_addons, play, &apply_addon(&2, &1))
+
+    new_play =
+      start_new_hand(%{
+        post_addons
+        | button_seat: next_btn.seat,
+          pending_addons: [],
+          current_hand: nil
+      })
+
+    Task.start(fn ->
+      Replay.persist_session_data(new_play)
+    end)
+
+    new_play
   end
 
   @spec maybe_deal(t()) :: t()
@@ -242,7 +365,7 @@ defmodule Dramaha.Play do
           2500
 
         true ->
-          650
+          1200
       end
 
     Process.send_after(self(), :deal_timeout, timeout)
@@ -271,4 +394,91 @@ defmodule Dramaha.Play do
   end
 
   defp maybe_showdown(play), do: {:ignore, play}
+
+  @spec action_timeout(t()) :: t()
+  def action_timeout(%{current_hand: nil} = play), do: play
+
+  def action_timeout(%{current_hand: hand} = play) do
+    current_player = State.current_player(hand)
+
+    seconds_timeout =
+      case hand.street do
+        :flop -> 30
+        :turn -> 45
+        :river -> 75
+        _ -> 20
+      end
+
+    timer_ref =
+      Process.send_after(
+        self(),
+        {:action_timeout, current_player.player_id},
+        seconds_timeout * 1000
+      )
+
+    time_left = Process.read_timer(timer_ref)
+
+    expire_timestamp =
+      DateTime.utc_now()
+      |> DateTime.add(time_left, :millisecond)
+
+    %{
+      play
+      | action_timeout_ref: timer_ref,
+        action_timeout_stamp: expire_timestamp,
+        action_timeout_seconds: seconds_timeout
+    }
+  end
+
+  @spec clear_action_timeout(t()) :: t()
+  def clear_action_timeout(%{action_timeout_ref: nil} = play), do: play
+
+  def clear_action_timeout(play) do
+    Process.cancel_timer(play.action_timeout_ref)
+    %{play | action_timeout_ref: nil, action_timeout_stamp: nil, action_timeout_seconds: nil}
+  end
+
+  @spec apply_addon(t(), addon()) :: t()
+  def apply_addon(play, {player_id, chips}) do
+    player_index = Enum.find_index(play.players, &(&1.player_id == player_id))
+    player = Enum.at(play.players, player_index)
+
+    {updated_players, stack_increase} =
+      if player_index != nil do
+        # Don't add on past the maximum chips
+        updated_stack = min(max(player.stack, play.max_buy_in), player.stack + chips)
+        updated_player = %{player | stack: updated_stack}
+
+        {
+          List.replace_at(play.players, player_index, updated_player),
+          updated_player.stack - player.stack
+        }
+      else
+        {play.players, 0}
+      end
+
+    if stack_increase > 0 &&
+         Sessions.update_player_stack(player_id, player.stack + stack_increase, stack_increase) do
+      %{play | players: updated_players}
+    else
+      play
+    end
+  end
+
+  @spec merge_addon(t(), addon()) :: t()
+  def merge_addon(play, {player_id, chips}) do
+    index = Enum.find_index(play.pending_addons, fn {id, _} -> id == player_id end)
+
+    if index == nil do
+      %{play | pending_addons: [{player_id, chips} | play.pending_addons]}
+    else
+      %{
+        play
+        | pending_addons:
+            List.update_at(play.pending_addons, index, fn {_, current_chips} ->
+              {player_id, current_chips + chips}
+            end)
+      }
+    end
+  end
 end
