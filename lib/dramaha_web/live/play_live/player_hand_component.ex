@@ -10,6 +10,7 @@ defmodule DramahaWeb.PlayLive.PlayerHandComponent do
       Enum.map(cards, fn {card, hidden} ->
         {{card, hidden}, Enum.member?(play_context.selected_cards, card)}
       end)
+      |> Enum.sort_by(fn {{_, hidden}, _} -> hidden end)
 
     {:ok,
      socket
