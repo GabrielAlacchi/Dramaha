@@ -407,10 +407,10 @@ defmodule Dramaha.Play do
 
     seconds_timeout =
       case hand.street do
-        :flop -> 2000
-        :turn -> 2000
-        :river -> 2000
-        _ -> 2000
+        :flop -> 40
+        :turn -> 60
+        :river -> 80
+        _ -> 20
       end
 
     timer_ref =
