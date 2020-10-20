@@ -85,6 +85,14 @@ defmodule Dramaha.Sessions do
     end
   end
 
+  def player_quit(player_id, quit_at) do
+    from(p in Player,
+      where: p.id == ^player_id,
+      update: [set: [sitting_out: true, seat: nil, quit_at: ^quit_at]]
+    )
+    |> Repo.update_all([])
+  end
+
   @spec update_player_sitout(integer(), boolean()) :: any()
   def update_player_sitout(player_id, sitting_out) do
     from(p in Player,
@@ -131,20 +139,26 @@ defmodule Dramaha.Sessions do
   end
 
   @spec call_gameserver(Dramaha.Sessions.Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
-  def call_gameserver(%{uuid: uuid} = session, message) do
-    # The UUID identifies the play process for the session
-    pid =
-      case Registry.lookup(Dramaha.PlayRegistry, uuid) do
-        # If the gameserver is down (maybe we restarted the elixir server) we reconfigure the game session,
-        # unique keys in the registry prevents a race condition.
-        [] ->
-          configure_gameserver(session)
+  def call_gameserver(session, message) do
+    GenServer.call(lookup_or_configure_gameserver(session), message)
+  end
 
-        [{pid, _}] ->
-          pid
-      end
+  @spec cast_gameserver(Dramaha.Sessions.Session.t(), any()) :: :ok
+  def cast_gameserver(session, message) do
+    GenServer.cast(lookup_or_configure_gameserver(session), message)
+  end
 
-    GenServer.call(pid, message)
+  @spec lookup_or_configure_gameserver(Dramaha.Sessions.Session.t()) :: pid()
+  defp lookup_or_configure_gameserver(%{uuid: uuid} = session) do
+    case Registry.lookup(Dramaha.PlayRegistry, uuid) do
+      # If the gameserver is down (maybe we restarted the elixir server) we reconfigure the game session,
+      # unique keys in the registry prevents a race condition.
+      [] ->
+        configure_gameserver(session)
+
+      [{pid, _}] ->
+        pid
+    end
   end
 
   @spec configure_gameserver(Dramaha.Sessions.Session.t()) :: pid()

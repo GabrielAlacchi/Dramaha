@@ -10,10 +10,16 @@ defmodule Dramaha.Sessions.Player do
     field(:seat, :integer)
     field(:current_stack, :integer)
     field(:sitting_out, :boolean, default: true)
+    field(:quit_at, :utc_datetime, default: nil)
 
     timestamps()
   end
 
+  @spec create_changeset(
+          atom | %{max_buy_in: any, min_buy_in: any},
+          {map, map} | %{:__struct__ => atom | %{__changeset__: map}, optional(atom) => any},
+          :invalid | %{optional(:__struct__) => none, optional(atom | binary) => any}
+        ) :: Ecto.Changeset.t()
   def create_changeset(session, player, params \\ %{}) do
     player
     |> cast(params, [:display_name, :current_stack])

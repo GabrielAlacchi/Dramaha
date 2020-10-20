@@ -20,6 +20,9 @@ defmodule Dramaha.Play do
           | {:configure_session, String.t(), Actions.Config.t(), integer()}
           | {:play_action, Dramaha.Game.Player.t(), Actions.action()}
           | {:add_on, integer(), integer()}
+          | {:quit, integer()}
+
+  @type cast() :: {:quit, integer()}
 
   @spec __struct__ :: Dramaha.Play.t()
   defstruct players: [],
@@ -31,7 +34,8 @@ defmodule Dramaha.Play do
             action_timeout_ref: nil,
             action_timeout_stamp: nil,
             action_timeout_seconds: nil,
-            pending_addons: []
+            pending_addons: [],
+            pending_quits: []
 
   @type t() :: %__MODULE__{
           players: list(Dramaha.Game.Player.t()),
@@ -43,22 +47,10 @@ defmodule Dramaha.Play do
           action_timeout_ref: non_neg_integer() | nil,
           action_timeout_stamp: DateTime.t() | nil,
           action_timeout_seconds: integer() | nil,
-          pending_addons: list(addon())
+          pending_addons: list(addon()),
+          pending_quits: list({integer(), DateTime.t()})
         }
 
-  @spec start_link([
-          {:debug, [:log | :statistics | :trace | {any, any}]}
-          | {:hibernate_after, :infinity | non_neg_integer}
-          | {:name, atom | {:global, any} | {:via, atom, any}}
-          | {:spawn_opt,
-             :link
-             | :monitor
-             | {:fullsweep_after, non_neg_integer}
-             | {:min_bin_vheap_size, non_neg_integer}
-             | {:min_heap_size, non_neg_integer}
-             | {:priority, :high | :low | :normal}}
-          | {:timeout, :infinity | non_neg_integer}
-        ]) :: :ignore | {:error, any} | {:ok, pid}
   def start_link(options) do
     GenServer.start_link(__MODULE__, %Dramaha.Play{}, options)
   end
@@ -109,51 +101,8 @@ defmodule Dramaha.Play do
   end
 
   @impl true
-  def handle_call({:update_sitout, player_id, sitting_out}, _from, %{players: players} = play) do
-    {_, i} =
-      Enum.with_index(players)
-      |> Enum.filter(fn {player, _} -> player.player_id == player_id end)
-      |> List.first()
-
-    players = List.update_at(players, i, fn player -> %{player | sitting_out: sitting_out} end)
-
-    play = %{play | players: players}
-
-    play =
-      case play.current_hand do
-        nil ->
-          start_new_hand(play)
-
-        hand ->
-          hsp_index = Enum.find_index(hand.players, fn %{player_id: id} -> id == player_id end)
-
-          updated_hand =
-            cond do
-              hsp_index != nil ->
-                updated_players =
-                  List.update_at(hand.players, hsp_index, &%{&1 | sitting_out: sitting_out})
-
-                %{hand | players: updated_players}
-
-              true ->
-                hand
-            end
-
-          if State.current_player(updated_hand).player_id == player_id do
-            play_action(
-              %{play | current_hand: updated_hand},
-              Actions.default_action(updated_hand)
-            )
-          else
-            %{play | current_hand: updated_hand}
-          end
-      end
-
-    Task.start(fn ->
-      Sessions.update_player_sitout(player_id, sitting_out)
-    end)
-
-    Sessions.broadcast_update(play.uuid)
+  def handle_call({:update_sitout, player_id, sitting_out}, _from, play) do
+    play = handle_sitout(play, player_id, sitting_out)
     {:reply, play, play}
   end
 
@@ -184,6 +133,23 @@ defmodule Dramaha.Play do
         play = apply_addon(play, {player_id, addon_chips})
         Sessions.broadcast_update(play.uuid)
         {:reply, play, play}
+    end
+  end
+
+  @impl true
+  @spec handle_cast(cast(), t()) :: {:noreply, t()}
+  def handle_cast({:quit, player_id}, play) do
+    play = handle_sitout(play, player_id, true)
+
+    cond do
+      play.current_hand != nil && State.in_hand?(play.current_hand, player_id) ->
+        {:noreply,
+         %{play | pending_quits: [{player_id, DateTime.utc_now()} | play.pending_quits]}}
+
+      true ->
+        play = handle_player_quit(play, {player_id, DateTime.utc_now()})
+        Sessions.broadcast_update(play.uuid)
+        {:noreply, play}
     end
   end
 
@@ -345,17 +311,19 @@ defmodule Dramaha.Play do
     next_btn = next_btn || %{seat: play.button_seat}
 
     post_addons = Enum.reduce(play.pending_addons, play, &apply_addon(&2, &1))
+    post_quits = Enum.reduce(play.pending_quits, post_addons, &handle_player_quit(&2, &1))
 
     new_play =
       start_new_hand(%{
-        post_addons
+        post_quits
         | button_seat: next_btn.seat,
           pending_addons: [],
           current_hand: nil
       })
 
+    # Persist things from after addons
     Task.start(fn ->
-      Replay.persist_session_data(new_play)
+      Replay.persist_session_data(post_addons)
     end)
 
     new_play
@@ -484,5 +452,61 @@ defmodule Dramaha.Play do
             end)
       }
     end
+  end
+
+  @spec handle_sitout(t(), integer(), boolean()) :: t()
+  defp handle_sitout(%{players: players} = play, player_id, sitting_out) do
+    {_, i} =
+      Enum.with_index(players)
+      |> Enum.filter(fn {player, _} -> player.player_id == player_id end)
+      |> List.first()
+
+    players = List.update_at(players, i, fn player -> %{player | sitting_out: sitting_out} end)
+
+    play = %{play | players: players}
+
+    play =
+      case play.current_hand do
+        nil ->
+          start_new_hand(play)
+
+        hand ->
+          hsp_index = Enum.find_index(hand.players, fn %{player_id: id} -> id == player_id end)
+
+          updated_hand =
+            cond do
+              hsp_index != nil ->
+                updated_players =
+                  List.update_at(hand.players, hsp_index, &%{&1 | sitting_out: sitting_out})
+
+                %{hand | players: updated_players}
+
+              true ->
+                hand
+            end
+
+          if State.current_player(updated_hand).player_id == player_id do
+            play_action(
+              %{play | current_hand: updated_hand},
+              Actions.default_action(updated_hand)
+            )
+          else
+            %{play | current_hand: updated_hand}
+          end
+      end
+
+    Task.start(fn ->
+      Sessions.update_player_sitout(player_id, sitting_out)
+    end)
+
+    Sessions.broadcast_update(play.uuid)
+    play
+  end
+
+  @spec handle_player_quit(t(), {integer(), DateTime.t()}) :: t()
+  defp handle_player_quit(play, {player_id, quit_at}) do
+    Task.start(fn -> Sessions.player_quit(player_id, quit_at) end)
+
+    %{play | players: Enum.filter(play.players, &(&1.player_id != player_id))}
   end
 end

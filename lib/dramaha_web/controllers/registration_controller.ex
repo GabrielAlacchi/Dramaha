@@ -29,4 +29,10 @@ defmodule DramahaWeb.RegistrationController do
         end
     end
   end
+
+  @spec quit(Plug.Conn.t(), any) :: Plug.Conn.t()
+  def quit(conn, _) do
+    configure_session(conn, drop: true)
+    |> redirect(to: "/sessions/new")
+  end
 end

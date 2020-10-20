@@ -21,6 +21,7 @@ defmodule DramahaWeb.Router do
     live "/sessions/new", SessionsLive.New
     live "/sessions/:session_uuid/join", SessionsLive.Join
     live "/sessions/:session_uuid/play", PlayLive.Play
+    get "/sessions/quit", RegistrationController, :quit
 
     post "/sessions/:session_uuid/register", RegistrationController, :register
   end

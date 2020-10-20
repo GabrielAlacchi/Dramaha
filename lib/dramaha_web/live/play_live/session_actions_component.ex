@@ -36,5 +36,16 @@ defmodule DramahaWeb.PlayLive.SessionActionsComponent do
       socket.assigns.session,
       {:add_on, socket.assigns.us.player_id, socket.assigns.session.max_buy_in}
     )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("quit", _, socket) do
+    Sessions.cast_gameserver(
+      socket.assigns.session,
+      {:quit, socket.assigns.us.player_id}
+    )
+
+    {:noreply, push_redirect(socket, to: "/sessions/quit")}
   end
 end

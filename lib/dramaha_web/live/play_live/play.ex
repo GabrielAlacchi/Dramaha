@@ -88,6 +88,8 @@ defmodule DramahaWeb.PlayLive.Play do
     {:noreply, assign(socket, :play_context, updated)}
   end
 
+  defp assign_play_state(%{assigns: %{player: nil}} = socket), do: socket
+
   defp assign_play_state(socket) do
     state = Sessions.call_gameserver(socket.assigns.session, :query_state)
     # Are we already in the state? If not we need to register ourselves to the session server
