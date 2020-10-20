@@ -8,12 +8,13 @@
     <%= for {_, pot_size} <- Enum.reverse(@pot.pots) |> Enum.filter(fn {_, pot_size} -> pot_size > 0 end) do %>
       <div class="pot--entry">
         <div class="pot--split">
-        <h2><%= pot_size %></h2>
-        <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: pot_size) %>
+          <h2><%= pot_size %></h2>
+          <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: pot_size) %>
+        </div>
       </div>
     <% end %>
     <%= for {{_, players}, idx} <- Enum.with_index(@showdowns) do %>
-      <div class="pot--entry won" id="showdown-<%= idx %>">
+      <div class="pot--entry won" phx-hook="Showdown" id="showdown-<%= idx %>">
         <%= for {seat, chips} <- players do %>
           <div class="pot--split" data-target-seat="<%= seat %>">
             <h2><%= chips %></h2>
