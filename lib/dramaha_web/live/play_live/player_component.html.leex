@@ -5,7 +5,7 @@
       <%= live_component(@socket, DramahaWeb.PlayLive.ChipComponent, size: @hand_state_player.bet) %>
     </div>
   <% end %>
-  <%= live_component(@socket, DramahaWeb.PlayLive.PlayerHandComponent, cards: @cards, selectable?: @selectable?, play_context: @play_context) %>
+  <%= live_component(@socket, DramahaWeb.PlayLive.PlayerHandComponent, cards: @cards, selectable?: @selectable?, play_context: @play_context, faceup_card: @faceup_card) %>
   <div class="player--stack">
     <p><%= @player.name %></p>
     <%= if @sitting_out? do %>

@@ -21,12 +21,8 @@ defmodule Dramaha.Hand do
       Enum.reduce(players, initial_deal, fn player, {players, current_deck} ->
         {new_deck, drawn_holding} = Deck.draw(current_deck, 5)
 
-        # This should never error out since we safely drew 5 cards. If it does we'd like to get
-        # a process crashing exception to know about it.
-        {:ok, holding_tuple} = Card.list_to_holding(drawn_holding)
-
         {
-          players ++ [Player.deal_in(player, holding_tuple)],
+          players ++ [Player.deal_in(player, drawn_holding)],
           new_deck
         }
       end)

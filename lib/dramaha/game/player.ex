@@ -32,6 +32,7 @@ defmodule Dramaha.Game.Player do
             show_hand: false,
 
             # We'll keep track of in hand and board hand as the hand progresses.
+            dealt_cards: [],
             holding: nil,
             hand: {:high_card, 0},
             board_holding: nil,
@@ -48,6 +49,7 @@ defmodule Dramaha.Game.Player do
           raise_by: integer(),
           committed: integer(),
           dealt_in: boolean(),
+          dealt_cards: list(Card.t()),
           holding: Card.holding() | nil,
           done_drawing: boolean(),
           hand: Poker.poker_hand(),
@@ -58,9 +60,17 @@ defmodule Dramaha.Game.Player do
           board_hand: Poker.poker_hand()
         }
 
-  @spec deal_in(t(), Card.holding()) :: t()
-  def deal_in(player, holding) do
-    %{player | dealt_in: true, holding: holding, hand: Poker.evaluate(holding)}
+  @spec deal_in(t(), list(Card.t())) :: t()
+  def deal_in(player, dealt_cards) do
+    {:ok, holding} = Card.list_to_holding(dealt_cards)
+
+    %{
+      player
+      | dealt_in: true,
+        dealt_cards: dealt_cards,
+        holding: holding,
+        hand: Poker.evaluate(holding)
+    }
   end
 
   @spec update_board_hand(t(), list(Card.t())) :: t()

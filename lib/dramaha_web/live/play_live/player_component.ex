@@ -54,30 +54,35 @@ defmodule DramahaWeb.PlayLive.PlayerComponent do
   defp assign_cards(socket, state, hand_state_player, is_us) do
     {socket, cards} =
       case hand_state_player do
-        %{holding: holding, player_id: id, faceup_card: faceup, show_hand: show_hand}
+        %{
+          holding: holding,
+          dealt_cards: dealt_cards,
+          faceup_card: faceup_card,
+          show_hand: show_hand
+        }
         when holding != nil ->
-          if is_us || show_hand do
-            cards = Tuple.to_list(holding) |> Enum.map(&{&1, false})
+          {socket, cards} =
+            if is_us || show_hand do
+              cards = dealt_cards |> Enum.map(&{&1, false})
 
-            selectable? =
-              State.draw_street?(state.current_hand) && State.our_turn?(state.current_hand, id)
+              selectable? = State.draw_street?(state.current_hand)
 
-            {assign(socket, :selectable?, selectable?), cards}
-          else
-            cards = Tuple.to_list(holding)
+              {assign(socket, :selectable?, selectable?), cards}
+            else
+              {assign(socket, :selectable?, false),
+               Enum.map(dealt_cards, fn card ->
+                 if card == faceup_card do
+                   {card, false}
+                 else
+                   {nil, true}
+                 end
+               end)}
+            end
 
-            {assign(socket, :selectable?, false),
-             Enum.map(cards, fn card ->
-               if card == faceup do
-                 {card, false}
-               else
-                 {nil, true}
-               end
-             end)}
-          end
+          {socket |> assign(:faceup_card, faceup_card), cards}
 
         _ ->
-          {assign(socket, :selectable?, false), []}
+          {assign(socket, :selectable?, false) |> assign(:faceup_card, nil), []}
       end
 
     assign(socket, :cards, cards)

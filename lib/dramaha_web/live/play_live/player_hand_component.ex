@@ -10,7 +10,6 @@ defmodule DramahaWeb.PlayLive.PlayerHandComponent do
       Enum.map(cards, fn {card, hidden} ->
         {{card, hidden}, Enum.member?(play_context.selected_cards, card)}
       end)
-      |> Enum.sort_by(fn {{_, hidden}, _} -> hidden end)
 
     {:ok,
      socket
@@ -22,8 +21,8 @@ defmodule DramahaWeb.PlayLive.PlayerHandComponent do
   def render(assigns) do
     ~L"""
     <div class="player--hand">
-      <%= for {{card, hidden}, selected?} <- @cards_selected do %>
-        <%= live_component(@socket, DramahaWeb.PlayLive.CardComponent, selectable?: @selectable?, selected?: selected?, card: card, hidden: hidden) %>
+      <%= for {{card, hidden?}, selected?} <- @cards_selected do %>
+        <%= live_component(@socket, DramahaWeb.PlayLive.CardComponent, selectable?: @selectable?, selected?: selected? || card == @faceup_card, card: card, hidden: hidden?) %>
       <% end %>
     </div>
     """

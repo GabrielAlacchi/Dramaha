@@ -335,16 +335,25 @@ defmodule Dramaha.Game.Actions do
     {deck, replaced_cards} = Deck.draw(state.deck, length(discards))
 
     new_players =
-      List.update_at(state.players, state.player_turn, fn %{holding: holding} = player ->
-        holding_list = Tuple.to_list(holding)
+      List.update_at(state.players, state.player_turn, fn player ->
+        {new_dealt_cards, _} =
+          Enum.reduce(player.dealt_cards, {[], replaced_cards}, fn holding_card,
+                                                                   {dealt_cards, new_cards} ->
+            if Enum.member?(discards, holding_card) do
+              [next_new_card | rest] = new_cards
+              {dealt_cards ++ [next_new_card], rest}
+            else
+              {dealt_cards ++ [holding_card], replaced_cards}
+            end
+          end)
 
-        filter_discards = Enum.filter(holding_list, &(!Enum.member?(discards, &1)))
-        {:ok, new_holding} = Card.list_to_holding(filter_discards ++ replaced_cards)
+        {:ok, new_holding} = Card.list_to_holding(new_dealt_cards)
 
         player_updated_in_hand = %{
           player
           | holding: new_holding,
             hand: Poker.evaluate(new_holding),
+            dealt_cards: new_dealt_cards,
             done_drawing: true
         }
 
