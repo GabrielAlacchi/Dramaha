@@ -215,6 +215,7 @@ div[data-phx-main=true] {
 
 .player--hand {
   position: relative;
+  transition: all ease-in 120ms;
   width: 100%;
   display: grid;
   grid-template-columns: repeat(5, 30px);
@@ -226,6 +227,12 @@ div[data-phx-main=true] {
 
 .folded {
   opacity: 0;
+  transform: translateY(5px);
+}
+
+.folded:hover, .player:hover > .folded {
+  opacity: 0.6;
+  transform: translateY(0);
 }
 
 .player--stack {

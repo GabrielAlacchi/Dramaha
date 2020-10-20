@@ -79,10 +79,20 @@ defmodule DramahaWeb.PlayLive.PlayerComponent do
                end)}
             end
 
-          {socket |> assign(:faceup_card, faceup_card), cards}
+          {socket |> assign(:faceup_card, faceup_card) |> assign(:folded, false), cards}
 
-        _ ->
-          {assign(socket, :selectable?, false) |> assign(:faceup_card, nil), []}
+        %{dealt_cards: dealt_cards} ->
+          {
+            assign(socket, :selectable?, false)
+            |> assign(:folded, true)
+            |> assign(:faceup_card, nil),
+            Enum.map(dealt_cards, &{&1, !is_us})
+          }
+
+        nil ->
+          {assign(socket, :selectable?, false)
+           |> assign(:faceup_card, nil)
+           |> assign(:folded, true), []}
       end
 
     assign(socket, :cards, cards)
@@ -96,5 +106,9 @@ defmodule DramahaWeb.PlayLive.PlayerComponent do
       end
 
     assign(socket, :action, action)
+  end
+
+  @impl true
+  def handle_event("is_us", _, socket) do
   end
 end

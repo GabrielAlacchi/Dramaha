@@ -20,7 +20,7 @@ defmodule DramahaWeb.PlayLive.PlayerHandComponent do
   @impl true
   def render(assigns) do
     ~L"""
-    <div class="player--hand">
+    <div class="player--hand <%= if @folded, do: "folded" %>">
       <%= for {{card, hidden?}, selected?} <- @cards_selected do %>
         <%= live_component(@socket, DramahaWeb.PlayLive.CardComponent, selectable?: @selectable?, selected?: selected? || card == @faceup_card, card: card, hidden: hidden?) %>
       <% end %>
