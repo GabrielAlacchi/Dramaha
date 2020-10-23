@@ -47,7 +47,9 @@ defmodule Dramaha.MixProject do
       {:gettext, "~> 0.11"},
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
-      {:uuid, "~> 1.1"}
+      {:uuid, "~> 1.1"},
+      {:math, "~> 0.5.0"},
+      {:inflex, "~> 2.0.0"}
     ]
   end
 

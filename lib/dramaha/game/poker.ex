@@ -1,5 +1,8 @@
 # Functions to evaluate hand type and strength
 defmodule Dramaha.Game.Poker do
+  alias Dramaha.Util
+  alias Dramaha.Game.Card
+
   @type poker_hand_type ::
           :high_card
           | :pair
@@ -14,7 +17,7 @@ defmodule Dramaha.Game.Poker do
   # A hand is summarized by the type of hand and the kicker values
   @type poker_hand :: {poker_hand_type, integer}
 
-  @spec evaluate(Dramaha.Game.Card.holding()) :: poker_hand()
+  @spec evaluate(Card.holding()) :: poker_hand()
   def evaluate(holding) do
     # Assume holding is sorted descending by rank
     if flush?(holding) do
@@ -86,18 +89,18 @@ defmodule Dramaha.Game.Poker do
     type_ordinal * 1_000_000_000 + kicker_score
   end
 
-  @spec kicker_ranks(list(Dramaha.Game.Card.card())) :: list(integer)
+  @spec kicker_ranks(list(Card.card())) :: list(integer)
   defp kicker_ranks(cards) do
     Enum.map(cards, fn {rank, _} -> rank end)
   end
 
-  @spec kicker_ranks(list(Dramaha.Game.Card.card()), list(integer)) :: list(integer)
+  @spec kicker_ranks(list(Card.card()), list(integer)) :: list(integer)
   defp kicker_ranks(cards, paired_ranks) do
     Enum.filter(cards, fn {rank, _} -> !Enum.member?(paired_ranks, rank) end)
     |> Enum.map(fn {rank, _} -> rank end)
   end
 
-  @spec create_inverse_rank_map(list(Dramaha.Game.Card.card())) :: map()
+  @spec create_inverse_rank_map(list(Card.card())) :: map()
   defp create_inverse_rank_map(cards) do
     reducer = fn {rank, _}, counts ->
       {_, map} = Map.get_and_update(counts, rank, &{&1, (&1 || 0) + 1})
@@ -141,7 +144,7 @@ defmodule Dramaha.Game.Poker do
     end
   end
 
-  @spec evaluate_straight(Dramaha.Game.Card.holding()) :: {:straight, integer} | :none
+  @spec evaluate_straight(Card.holding()) :: {:straight, integer} | :none
   defp evaluate_straight(holding) do
     # Assume holding is sorted descending by rank and are distinct (no pairs or above)
     case holding do
@@ -154,11 +157,79 @@ defmodule Dramaha.Game.Poker do
     end
   end
 
-  @spec flush?(Dramaha.Game.Card.holding()) :: boolean()
+  @spec flush?(Card.holding()) :: boolean()
   defp flush?(holding) do
     case holding do
       {{_, suit}, {_, suit}, {_, suit}, {_, suit}, {_, suit}} -> true
       _ -> false
+    end
+  end
+
+  @spec describe(poker_hand()) :: {:ok, String.t()} | :invalid_hand
+  def describe({hand_type, kicker_score}) do
+    case describe_kickers(kicker_score) do
+      {:ok, kickers} ->
+        case describe_with_ranks(hand_type, kickers) do
+          :invalid_hand -> :invalid_hand
+          description -> {:ok, description}
+        end
+
+      {:invalid_rank, _} ->
+        :invalid_hand
+    end
+  end
+
+  @spec describe_with_ranks(poker_hand_type(), list(String.t())) :: String.t() | :invalid_hand
+  defp describe_with_ranks(:high_card, [rank | _]), do: "#{Util.capitalize(rank)} high"
+  defp describe_with_ranks(:pair, [rank | _]), do: "Pair of #{Inflex.pluralize(rank)}"
+
+  defp describe_with_ranks(:two_pair, [top, bottom | _]),
+    do: "Two pairs, #{Inflex.pluralize(top)} and #{Inflex.pluralize(bottom)}"
+
+  defp describe_with_ranks(:three_kind, [rank | _]),
+    do: "Three of a kind of #{Inflex.pluralize(rank)}"
+
+  defp describe_with_ranks(:straight, [rank | _]), do: "#{Util.capitalize(rank)} high straight"
+  defp describe_with_ranks(:flush, [rank | _]), do: "#{Util.capitalize(rank)} high flush"
+
+  defp describe_with_ranks(:full_house, [trip, pair]),
+    do: "#{Util.capitalize(Inflex.pluralize(trip))} full of #{Inflex.pluralize(pair)}"
+
+  defp describe_with_ranks(:quad, [rank | _]), do: "Quad #{Inflex.pluralize(rank)}"
+  defp describe_with_ranks(:straight_flush, ["ace" | _]), do: "Royal flush"
+
+  defp describe_with_ranks(:straight_flush, [rank | _]),
+    do: "#{Util.capitalize(rank)} high straight flush"
+
+  defp describe_with_ranks(_, _), do: :invalid_hand
+
+  @spec describe_kickers(integer()) :: {:ok, list(String.t())} | {:invalid_rank, integer()}
+  defp describe_kickers(kicker_score) when kicker_score <= 1, do: {:invalid_rank, kicker_score}
+
+  defp describe_kickers(kicker_score) when kicker_score < 15 do
+    {:ok, description} = Card.describe_rank(kicker_score)
+    {:ok, [description]}
+  end
+
+  defp describe_kickers(kicker_score) do
+    floor_log = Math.log(kicker_score, 15) |> floor()
+
+    divisor = Math.pow(15, floor_log)
+
+    rank = Integer.floor_div(kicker_score, divisor)
+
+    case Card.describe_rank(rank) do
+      {:ok, described} ->
+        case describe_kickers(Integer.mod(kicker_score, divisor)) do
+          {:ok, other_kickers} ->
+            {:ok, [described | other_kickers]}
+
+          error ->
+            error
+        end
+
+      {:invalid_rank, x} ->
+        {:invalid_rank, x}
     end
   end
 end

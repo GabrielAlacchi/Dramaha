@@ -107,8 +107,4 @@ defmodule DramahaWeb.PlayLive.PlayerComponent do
 
     assign(socket, :action, action)
   end
-
-  @impl true
-  def handle_event("is_us", _, socket) do
-  end
 end

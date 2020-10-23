@@ -82,6 +82,53 @@ defmodule Dramaha.Game.Card do
     "#{rank_str}#{suit}"
   end
 
+  @spec describe_rank(integer()) :: {:ok, String.t()} | {:invalid_rank, integer()}
+  def describe_rank(rank) do
+    case rank do
+      14 ->
+        {:ok, "ace"}
+
+      13 ->
+        {:ok, "king"}
+
+      12 ->
+        {:ok, "queen"}
+
+      11 ->
+        {:ok, "jack"}
+
+      10 ->
+        {:ok, "ten"}
+
+      9 ->
+        {:ok, "nine"}
+
+      8 ->
+        {:ok, "eight"}
+
+      7 ->
+        {:ok, "seven"}
+
+      6 ->
+        {:ok, "six"}
+
+      5 ->
+        {:ok, "five"}
+
+      4 ->
+        {:ok, "four"}
+
+      3 ->
+        {:ok, "three"}
+
+      2 ->
+        {:ok, "two"}
+
+      rank ->
+        {:invalid_rank, rank}
+    end
+  end
+
   @spec parse_suit(String.t()) :: suit() | :error
   @spec parse_rank(String.t()) :: integer() | :error
 
