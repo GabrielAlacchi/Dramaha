@@ -66,6 +66,7 @@ div[data-phx-main=true] {
   bottom: 0;
   top: 0;
 
+  justify-content: center;
   display: flex;
   align-items: center;
   flex-direction: column;
@@ -75,7 +76,7 @@ div[data-phx-main=true] {
   position: relative;
   width: $tableWidth;
   height: $tableHeight;
-  margin: 100px 30px;
+  margin: auto 30px;
   border-radius: 40%;
   background: $tableColor;
   
@@ -93,7 +94,6 @@ div[data-phx-main=true] {
   min-height: 125px;
   display: flex;
   flex-direction: row;
-  margin-top: auto;
 }
 
 @media screen and (max-height: 800px) {
