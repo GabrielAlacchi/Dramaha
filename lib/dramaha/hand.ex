@@ -1,6 +1,5 @@
 defmodule Dramaha.Hand do
   alias Dramaha.Game.Actions, as: Actions
-  alias Dramaha.Game.Card, as: Card
   alias Dramaha.Game.Deck, as: Deck
   alias Dramaha.Game.Player, as: Player
   alias Dramaha.Game.Pot, as: Pot
@@ -204,10 +203,10 @@ defmodule Dramaha.Hand do
     case Pot.peek_eligible(state.pot, state.players) do
       # The winner won an additional side pot without need for a showdown (or the main pot in the case
       # everyone folded through)
-      [{_, idx}] ->
+      [{player, idx}] ->
         {pot, pot_size, _} = Pot.pop_showdown(state.pot, state.players)
 
-        showdown = Showdown.folded_showdown(idx, pot_size)
+        showdown = Showdown.folded_showdown(idx, player, pot_size)
         award_showdown_chips(state, showdown, pot)
 
       _ ->

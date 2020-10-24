@@ -13,4 +13,24 @@ defmodule Itertools do
   def product(a, b) do
     for x <- a, y <- b, do: {x, y}
   end
+
+  @spec merge_by(list(t), list(t), (t -> any())) :: list(t) when t: var
+  def merge_by(list_a, list_b, by_fn) do
+    merge_by_tr(list_a, list_b, by_fn, [])
+  end
+
+  @spec merge_by_tr(list(t), list(t), (t -> any()), list(t)) :: list(t) when t: var
+  defp merge_by_tr([], list_b, _, acc), do: acc ++ list_b
+  defp merge_by_tr(list_a, [], _, acc), do: acc ++ list_a
+
+  defp merge_by_tr([hd_a | tl_a], [hd_b | tl_b], by_fn, acc) do
+    by_a = by_fn.(hd_a)
+    by_b = by_fn.(hd_b)
+
+    if by_a <= by_b do
+      merge_by_tr(tl_a, [hd_b | tl_b], by_fn, acc ++ [hd_a])
+    else
+      merge_by_tr([hd_a | tl_a], tl_b, by_fn, acc ++ [hd_b])
+    end
+  end
 end

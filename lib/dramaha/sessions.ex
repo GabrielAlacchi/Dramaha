@@ -138,17 +138,43 @@ defmodule Dramaha.Sessions do
     Phoenix.PubSub.broadcast(Dramaha.PubSub, "session:#{uuid}", message)
   end
 
-  @spec call_gameserver(Dramaha.Sessions.Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
+  @spec cast_log_event(String.t(), String.t(), String.t()) :: :ok
+  def cast_log_event(uuid, message, emitted_by) do
+    pid = lookup_or_start_logger(uuid)
+    GenServer.cast(pid, {:log, message, emitted_by})
+  end
+
+  @spec getn_log_events(String.t(), non_neg_integer()) :: list(Dramaha.ActionLogger.LogEntry.t())
+  def getn_log_events(uuid, n) do
+    pid = lookup_or_start_logger(uuid)
+    GenServer.call(pid, {:get_top, n})
+  end
+
+  @spec subscribe_to_logs(String.t()) :: :ok
+  def subscribe_to_logs(session_uuid) do
+    Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{session_uuid}:logs")
+  end
+
+  @spec broadcast_log_event(String.t(), LogEvent.t()) :: :ok
+  def broadcast_log_event(session_uuid, log_event) do
+    Phoenix.PubSub.broadcast(
+      Dramaha.PubSub,
+      "session:#{session_uuid}:logs",
+      {:log_event, log_event}
+    )
+  end
+
+  @spec call_gameserver(Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
   def call_gameserver(session, message) do
     GenServer.call(lookup_or_configure_gameserver(session), message)
   end
 
-  @spec cast_gameserver(Dramaha.Sessions.Session.t(), any()) :: :ok
+  @spec cast_gameserver(Session.t(), any()) :: :ok
   def cast_gameserver(session, message) do
     GenServer.cast(lookup_or_configure_gameserver(session), message)
   end
 
-  @spec lookup_or_configure_gameserver(Dramaha.Sessions.Session.t()) :: pid()
+  @spec lookup_or_configure_gameserver(Session.t()) :: pid()
   defp lookup_or_configure_gameserver(%{uuid: uuid} = session) do
     case Registry.lookup(Dramaha.PlayRegistry, uuid) do
       # If the gameserver is down (maybe we restarted the elixir server) we reconfigure the game session,
@@ -161,7 +187,7 @@ defmodule Dramaha.Sessions do
     end
   end
 
-  @spec configure_gameserver(Dramaha.Sessions.Session.t()) :: pid()
+  @spec configure_gameserver(Session.t()) :: pid()
   defp configure_gameserver(session) do
     config = %Dramaha.Game.Actions.Config{
       small_blind: session.small_blind,
@@ -181,8 +207,32 @@ defmodule Dramaha.Sessions do
     end
   end
 
-  @spec via_registry(String.t()) :: {:via, Registry, {Dramaha.PlayRegistry, String.t()}}
-  defp via_registry(uuid) do
-    {:via, Registry, {Dramaha.PlayRegistry, uuid}}
+  @spec lookup_or_start_logger(String.t()) :: pid()
+  defp lookup_or_start_logger(uuid) do
+    registry_key = "#{uuid}-logger"
+
+    case Registry.lookup(Dramaha.PlayRegistry, registry_key) do
+      [] ->
+        case DynamicSupervisor.start_child(
+               Dramaha.PlaySupervisor,
+               {Dramaha.ActionLogger, name: via_registry(uuid, "-logger")}
+             ) do
+          {:ok, pid} ->
+            GenServer.call(pid, {:configure, uuid})
+            pid
+
+          {:error, {:already_started, pid}} ->
+            pid
+        end
+
+      [{pid, _}] ->
+        pid
+    end
+  end
+
+  @spec via_registry(String.t(), String.t()) ::
+          {:via, Registry, {Dramaha.PlayRegistry, String.t()}}
+  defp via_registry(uuid, suffix \\ "") do
+    {:via, Registry, {Dramaha.PlayRegistry, "#{uuid}#{suffix}"}}
   end
 end

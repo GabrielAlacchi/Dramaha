@@ -1,0 +1,29 @@
+
+.log-bar {
+  width: 420px;
+  height: 200px;
+  border: 1px solid white;
+  color: white;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0.5em;
+}
+
+.log-bar ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.5em 0;
+}
+
+.log--entry {
+  display: grid;
+  grid-template-columns: 120px calc(380px - 120px);
+
+  span:first-child {
+    font-weight: 700;
+  }
+}

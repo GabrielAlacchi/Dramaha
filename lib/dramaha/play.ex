@@ -6,8 +6,7 @@ defmodule Dramaha.Play do
   require Logger
 
   alias Dramaha.Replay
-  alias Dramaha.Game.State
-  alias Dramaha.Game.Actions
+  alias Dramaha.Game.{State, Actions, Showdown}
   alias Dramaha.Hand
   alias Dramaha.Sessions
 
@@ -97,6 +96,13 @@ defmodule Dramaha.Play do
     # Call start_new_hand here incase adding this player makes the game playable
     play = start_new_hand(%{play | players: players})
     Sessions.broadcast_update(play.uuid)
+
+    Sessions.cast_log_event(
+      play.uuid,
+      "#{new_player.display_name} has joined the game.",
+      "Server"
+    )
+
     {:reply, play, play}
   end
 
@@ -171,15 +177,36 @@ defmodule Dramaha.Play do
         [sb, bb] = positioned_by_button
         hand = Dramaha.Hand.start([bb, sb], bet_config)
         Sessions.broadcast_update(play.uuid, :new_hand)
+
+        Sessions.cast_log_event(
+          play.uuid,
+          "Dealing a new hand.",
+          "Dealer"
+        )
+
         action_timeout(%{play | current_hand: hand, button_seat: sb.seat})
 
       length(sitin_players) >= 2 ->
         hand = Dramaha.Hand.start(positioned_by_button, bet_config)
         Sessions.broadcast_update(play.uuid, :new_hand)
+
+        Sessions.cast_log_event(
+          play.uuid,
+          "Dealing a new hand.",
+          "Dealer"
+        )
+
         action_timeout(%{play | current_hand: hand})
 
       true ->
         Sessions.broadcast_update(play.uuid)
+
+        Sessions.cast_log_event(
+          play.uuid,
+          "Waiting for more players to start a new hand.",
+          "Player"
+        )
+
         play
     end
   end
@@ -189,6 +216,8 @@ defmodule Dramaha.Play do
 
   @spec play_action(t(), Actions.action()) :: t()
   defp play_action(play, action) do
+    log_action(play, action)
+
     case Hand.play_action(play.current_hand, action) do
       {:ok, state} ->
         play = clear_action_timeout(%{play | current_hand: state})
@@ -353,7 +382,8 @@ defmodule Dramaha.Play do
     case Hand.handle_next_showdown(play.current_hand) do
       {:ok, hand} ->
         Process.send_after(self(), :next_showdown, 10000)
-        {:showdown, %{play | current_hand: hand}}
+
+        {:showdown, log_last_showdown(%{play | current_hand: hand})}
 
       :no_more_pots ->
         {:done, play}
@@ -362,7 +392,7 @@ defmodule Dramaha.Play do
 
   defp maybe_showdown(%{current_hand: %{street: :folded}} = play) do
     Process.send_after(self(), :next_hand, 1500)
-    {:done, play}
+    {:done, log_last_showdown(play)}
   end
 
   defp maybe_showdown(play), do: {:ignore, play}
@@ -375,10 +405,10 @@ defmodule Dramaha.Play do
 
     seconds_timeout =
       case hand.street do
-        :flop -> 30
-        :turn -> 50
-        :river -> 80
-        _ -> 20
+        :flop -> 3000
+        :turn -> 5000
+        :river -> 8000
+        _ -> 2000
       end
 
     timer_ref =
@@ -507,6 +537,34 @@ defmodule Dramaha.Play do
   defp handle_player_quit(play, {player_id, quit_at}) do
     Task.start(fn -> Sessions.player_quit(player_id, quit_at) end)
 
+    quitting_player = Enum.find(play.players, &(&1.player_id == player_id))
+    Sessions.cast_log_event(play.uuid, "#{quitting_player.name} has quit the game", "Server")
+
+    Sessions.broadcast_update(play.uuid)
     %{play | players: Enum.filter(play.players, &(&1.player_id != player_id))}
+  end
+
+  @spec log_action(t(), Actions.action()) :: :ok
+  defp log_action(_, :deal), do: :ok
+
+  defp log_action(play, action) do
+    current_player = State.current_player(play.current_hand)
+
+    description = "#{Actions.describe(action)}."
+
+    Sessions.cast_log_event(play.uuid, description, current_player.name)
+  end
+
+  @spec log_last_showdown(t()) :: t()
+  defp log_last_showdown(%{current_hand: nil} = play), do: play
+  defp log_last_showdown(%{current_hand: %{showdowns: []}} = play), do: play
+
+  defp log_last_showdown(%{current_hand: hand} = play) do
+    last_showdown = List.last(hand.showdowns)
+
+    Showdown.describe(last_showdown)
+    |> Enum.each(&Sessions.cast_log_event(play.uuid, &1, "Server"))
+
+    play
   end
 end

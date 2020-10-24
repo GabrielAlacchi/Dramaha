@@ -1,0 +1,7 @@
+<section class="log-bar">
+  <ul phx-hook="LogScroll" id="log-bar-list">
+    <%= for log_entry <- @log_events do %>
+      <%= live_component(@socket, DramahaWeb.ActionLogLive.LogEntryComponent, id: "log-entry-#{log_entry.sequence}", log_entry: log_entry) %>
+    <% end %>
+  </ul>
+</section>
