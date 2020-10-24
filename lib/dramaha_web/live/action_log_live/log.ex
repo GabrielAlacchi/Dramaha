@@ -2,6 +2,8 @@ defmodule DramahaWeb.ActionLogLive.Log do
   @moduledoc """
   Live view which displays the game log for a session
   """
+  @retain_total 500
+
   use DramahaWeb, :live_view
 
   alias Dramaha.Sessions
@@ -29,6 +31,13 @@ defmodule DramahaWeb.ActionLogLive.Log do
     current_events = socket.assigns.log_events
 
     updated_events = Itertools.merge_by(current_events, new_events, & &1.sequence)
+
+    updated_events =
+      if length(updated_events) > @retain_total do
+        Enum.drop(updated_events, length(updated_events) - @retain_total)
+      else
+        updated_events
+      end
 
     assign(socket, :log_events, updated_events)
   end
