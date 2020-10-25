@@ -37,7 +37,7 @@ defmodule Dramaha.Game.Deck do
   @spec draw(t(), integer, atom() | nil) :: {t(), list(Card.card())}
   def draw(deck, n, name \\ nil) do
     cond do
-      is_atom(name) && Map.has_key?(deck.predrawn_cards, nil) ->
+      is_atom(name) && Map.has_key?(deck.predrawn_cards, name) ->
         {card, predrawn_cards} = Map.pop(deck.predrawn_cards, name)
         {%Deck{deck | predrawn_cards: predrawn_cards}, [card]}
 
