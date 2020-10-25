@@ -10,14 +10,14 @@ defmodule DramahaWeb.SessionsLive.Join do
 
   @impl true
   def mount(%{"session_uuid" => uuid} = params, live_session, socket) do
-    {uuid, socket} =
+    socket =
       case live_session do
         # This will lead to a redirect in handle_params
-        %{"session_uuid" => session_uuid, "player_id" => player_id} ->
-          {session_uuid, socket |> assign(:player, Repo.get(Player, player_id))}
+        %{"player_id" => player_id} ->
+          socket |> assign(:player, Repo.get(Player, player_id))
 
         _ ->
-          {uuid, socket}
+          socket
       end
 
     session = Sessions.get_session_by_uuid(uuid)
@@ -25,6 +25,7 @@ defmodule DramahaWeb.SessionsLive.Join do
     {:ok,
      socket
      |> assign(:session, session)
+     |> assign(:current_session, nil)
      |> assign(:page_title, "Join a Session - Dramaha")
      |> assign(:global_error, Map.get(params, "global_error"))
      |> assign_join_changeset(params)}
@@ -34,7 +35,8 @@ defmodule DramahaWeb.SessionsLive.Join do
   def handle_params(_params, _, socket) do
     case socket.assigns do
       %{player: p} when p != nil ->
-        {:noreply, push_redirect(socket, to: "/sessions/#{socket.assigns.session.uuid}/play")}
+        session = Repo.get(Sessions.Session, p.session_id)
+        {:noreply, assign(socket, :current_session, session)}
 
       %{session: nil} ->
         {:noreply, push_redirect(socket, to: "/sessions/new", replace: true)}

@@ -2,6 +2,10 @@
   <div class="join-form">
     <h1>Join this Dramaha Session</h1>
 
+    <%= if @current_session != nil do %>
+      <%= live_component(@socket, DramahaWeb.SessionsLive.OtherLinkComponent, id: :other_link, player: @player, session: @current_session) %>
+    <% end %>
+
     <%= if @global_error != nil do %>
       <div class="error-banner">
         <%= @global_error %>

@@ -7,6 +7,7 @@ defmodule DramahaWeb.PlayLive.Play do
   alias Dramaha.Game.Card
   alias Dramaha.Repo
   alias Dramaha.Sessions
+  alias DramahaWeb.Router.Helpers, as: Routes
 
   defmodule Context do
     @moduledoc """
@@ -45,12 +46,48 @@ defmodule DramahaWeb.PlayLive.Play do
 
   @impl true
   def handle_params(_, _, socket) do
+    this_session_id = socket.assigns.session.id
+
+    join_path =
+      Routes.live_path(
+        DramahaWeb.Endpoint,
+        DramahaWeb.SessionsLive.Join,
+        socket.assigns.session.uuid
+      )
+
     case socket.assigns.player do
       nil ->
-        {:noreply, push_redirect(socket, to: "/sessions/#{socket.assigns.session.uuid}/join")}
+        {:noreply, push_redirect(socket, to: join_path)}
+
+      %{session_id: id} when id != this_session_id ->
+        {:noreply, push_redirect(socket, to: join_path)}
 
       _ ->
-        {:noreply, socket}
+        if Sessions.call_gameserver(
+             socket.assigns.session,
+             {:has_player_quit?, socket.assigns.player.id}
+           ) do
+          {:noreply, push_redirect(socket, to: join_path)}
+        else
+          {:noreply, socket}
+        end
+    end
+  end
+
+  @impl true
+  def handle_info({:player_quit, player_id}, socket) do
+    if socket.assigns.player.id == player_id do
+      {:noreply,
+       push_redirect(socket,
+         to:
+           Routes.live_path(
+             DramahaWeb.Endpoint,
+             DramahaWeb.SessionsLive.Join,
+             socket.assigns.session.uuid
+           )
+       )}
+    else
+      {:noreply, assign_play_state(socket)}
     end
   end
 

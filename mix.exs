@@ -49,7 +49,8 @@ defmodule Dramaha.MixProject do
       {:plug_cowboy, "~> 2.0"},
       {:uuid, "~> 1.1"},
       {:math, "~> 0.5.0"},
-      {:inflex, "~> 2.0.0"}
+      {:inflex, "~> 2.0.0"},
+      {:timex, "~> 3.5"}
     ]
   end
 

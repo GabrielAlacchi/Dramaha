@@ -2,6 +2,10 @@
   <div class="join-form">
     <h1>Start a New Session</h1>
 
+    <%= if @current_session != nil do %>
+      <%= live_component(@socket, DramahaWeb.SessionsLive.OtherLinkComponent, id: :other_link, player: @player, session: @current_session) %>
+    <% end %>
+
     <%= live_component(@socket, DramahaWeb.SessionsLive.FormComponent, id: :new_session_form, session: %Dramaha.Sessions.Session{}) %>
   </div>
 </section>

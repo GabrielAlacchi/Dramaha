@@ -2,7 +2,7 @@ defmodule DramahaWeb.SessionsLive.New do
   use DramahaWeb, :live_view
 
   alias DramahaWeb.Router.Helpers, as: Routes
-  alias Dramaha.Repo
+  alias Dramaha.{Repo, Sessions}
 
   @impl true
   def mount(_params, live_session, socket) do
@@ -18,6 +18,7 @@ defmodule DramahaWeb.SessionsLive.New do
 
     {:ok,
      socket
+     |> assign(:current_session, nil)
      |> assign(:page_title, "Start a New Session - Dramaha")}
   end
 
@@ -32,9 +33,8 @@ defmodule DramahaWeb.SessionsLive.New do
           nil ->
             {:noreply, socket}
 
-          %{uuid: uuid} ->
-            to = Routes.live_path(DramahaWeb.Endpoint, DramahaWeb.PlayLive.Play, uuid)
-            {:noreply, push_redirect(socket, to: to)}
+          current_session ->
+            {:noreply, assign(socket, :current_session, current_session)}
         end
     end
   end
