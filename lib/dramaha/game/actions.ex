@@ -148,17 +148,17 @@ defmodule Dramaha.Game.Actions do
     end
   end
 
-  @spec fold(Player.t()) :: Player.t()
-  def fold(player) do
-    %{player | holding: nil}
-  end
-
   @spec execute_action(State.t(), action()) :: State.t()
   # FOLD Implementation
   def execute_action(%{players: players, player_turn: idx} = state, :fold) do
-    updated_players = List.update_at(players, idx, &fold(&1))
+    folding_player = Enum.at(players, idx)
+    updated_players = List.update_at(players, idx, &%{&1 | holding: nil})
 
-    State.find_next_player(%{state | players: updated_players})
+    State.find_next_player(%{
+      state
+      | players: updated_players,
+        deck: Deck.return_folded_holding(state.deck, folding_player.holding)
+    })
   end
 
   # Check Implementation
@@ -250,16 +250,16 @@ defmodule Dramaha.Game.Actions do
           Deck.draw(deck, 3)
 
         :draw ->
-          Deck.draw(deck, 1)
+          Deck.draw(deck, 1, :turn)
 
         :draw_race ->
-          Deck.draw(deck, 1)
+          Deck.draw(deck, 1, :turn)
 
         :turn ->
-          Deck.draw(deck, 1)
+          Deck.draw(deck, 1, :river)
 
         :turn_race ->
-          Deck.draw(deck, 1)
+          Deck.draw(deck, 1, :river)
 
         _ ->
           {deck, []}
@@ -332,7 +332,7 @@ defmodule Dramaha.Game.Actions do
 
   @spec draw_cards(State.t(), list(Card.t())) :: {State.t(), list(Card.t())}
   defp draw_cards(state, discards) do
-    {deck, replaced_cards} = Deck.draw(state.deck, length(discards))
+    {deck, replaced_cards} = Deck.replace_discards(state.deck, discards)
 
     new_players =
       List.update_at(state.players, state.player_turn, fn player ->
