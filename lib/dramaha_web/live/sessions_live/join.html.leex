@@ -2,6 +2,12 @@
   <div class="join-form">
     <h1>Join this Dramaha Session</h1>
 
+    <%= if @global_error != nil do %>
+      <div class="error-banner">
+        <%= @global_error %>
+      </div>
+    <% end %>
+
     <%= live_component(@socket, DramahaWeb.SessionsLive.JoinFormComponent, id: :new_session_form, session: @session, changeset: @changeset) %>
   </div>
 </section>

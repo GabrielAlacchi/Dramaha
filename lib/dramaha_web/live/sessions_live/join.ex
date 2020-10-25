@@ -26,6 +26,7 @@ defmodule DramahaWeb.SessionsLive.Join do
      socket
      |> assign(:session, session)
      |> assign(:page_title, "Join a Session - Dramaha")
+     |> assign(:global_error, Map.get(params, "global_error"))
      |> assign_join_changeset(params)}
   end
 

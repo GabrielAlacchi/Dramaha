@@ -26,6 +26,16 @@ defmodule DramahaWeb.RegistrationController do
                   name_taken: Keyword.has_key?(changeset.errors, :session_id)
                 )
             )
+
+          {:no_space, message} ->
+            redirect(conn,
+              to:
+                Routes.live_path(conn, DramahaWeb.SessionsLive.Join, uuid,
+                  display_name: player_attrs["display_name"],
+                  current_stack: player_attrs["current_stack"],
+                  global_error: message
+                )
+            )
         end
     end
   end
