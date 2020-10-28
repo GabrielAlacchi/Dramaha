@@ -343,9 +343,14 @@ defmodule Dramaha.Game.Actions do
               [next_new_card | rest] = new_cards
               {dealt_cards ++ [next_new_card], rest}
             else
-              {dealt_cards ++ [holding_card], replaced_cards}
+              {dealt_cards ++ [holding_card], new_cards}
             end
           end)
+
+        IO.puts("[Debug Dump]")
+        IO.inspect(discards)
+        IO.inspect(replaced_cards)
+        IO.inspect(new_dealt_cards)
 
         {:ok, new_holding} = Card.list_to_holding(new_dealt_cards)
 
