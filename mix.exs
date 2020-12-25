@@ -35,7 +35,6 @@ defmodule Dramaha.MixProject do
     [
       {:phoenix, "~> 1.5.5"},
       {:phoenix_ecto, "~> 4.1"},
-      {:ecto_sql, "~> 3.4"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_live_view, "~> 0.14.6"},
       {:floki, ">= 0.27.0", only: :test},
@@ -50,7 +49,9 @@ defmodule Dramaha.MixProject do
       {:uuid, "~> 1.1"},
       {:math, "~> 0.5.0"},
       {:inflex, "~> 2.0.0"},
-      {:timex, "~> 3.5"}
+      {:timex, "~> 3.5"},
+      {:ecto_sql, "~> 3.5"},
+      {:ecto, "~> 3.5"}
     ]
   end
 
