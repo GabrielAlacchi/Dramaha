@@ -1,0 +1,9 @@
+<section class="leaderboard">
+  <h3>Leaderboard</h3>
+  <%= for entry <- @entries do %>
+  <div class="leaderboard--entry">
+    <div><%= entry.player_name %></div>
+    <div><%= chips_won_format(entry.chips_won) %></div>
+  </div>
+  <% end %>
+</section>
