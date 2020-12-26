@@ -1,5 +1,13 @@
 <section id="game" class="game">
-  <%= live_component(@socket, DramahaWeb.PlayLive.SessionActionsComponent, id: :session_actions, session: @session, state: @state, us: @us) %>
+  <div class="top-right-section">
+    <%= live_render(
+      @socket,
+      DramahaWeb.LeaderboardLive.Leaderboard,
+      id: :leaderboard_view,
+      session: %{"session" => @session}
+    ) %>
+    <%= live_component(@socket, DramahaWeb.PlayLive.SessionActionsComponent, id: :session_actions, session: @session, state: @state, us: @us) %>
+  </div>
 
   <%= live_component(@socket, DramahaWeb.PlayLive.TableComponent, id: :table, state: @state, play_context: @play_context, us: @us) %>
   <%= live_component(@socket, DramahaWeb.PlayLive.BottomPanelComponent, id: :bottom_panel, session: @session, play_context: @play_context, state: @state, us: @us) %>

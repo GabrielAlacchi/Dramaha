@@ -433,15 +433,36 @@ div[data-phx-main=true] {
   background: $actionCall;
 }
 
-.session-actions {
+.top-right-section {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.session-actions {
   display: flex;
   flex-direction: column;  
   padding: 1em;
 
   .btn {
     margin-top: 0.5em;
+  }
+}
+
+.leaderboard {
+  padding: 1em;
+  color: white;
+}
+
+.leaderboard--entry {
+  display: grid;
+  flex-direction: row;
+
+  grid-template-columns: 2fr 1fr;
+
+  div:last-child {
+    text-align: right;
   }
 }

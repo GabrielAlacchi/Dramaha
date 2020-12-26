@@ -10,6 +10,8 @@ defmodule Dramaha.Sessions do
   alias Dramaha.Sessions.Player
   alias Dramaha.Sessions.Session
 
+  @type game_proc_type :: Dramaha.Play | Dramaha.ActionLogger | Dramaha.Leaderboard
+
   def get_session_by_uuid(uuid), do: Repo.get_by(Session, uuid: uuid)
 
   def create_session(attrs) do
@@ -164,6 +166,20 @@ defmodule Dramaha.Sessions do
     )
   end
 
+  @spec subscribe_to_leaderboard(String.t()) :: :ok
+  def subscribe_to_leaderboard(session_uuid) do
+    Phoenix.PubSub.subscribe(Dramaha.PubSub, "session:#{session_uuid}:leaderboard")
+  end
+
+  @spec broadcast_leaderboard_entries(String.t(), list(Dramaha.Leaderboard.Entry.t())) :: :ok
+  def broadcast_leaderboard_entries(session_uuid, entries) do
+    Phoenix.PubSub.broadcast(
+      Dramaha.PubSub,
+      "session:#{session_uuid}:leaderboard",
+      {:leaderboard_update, entries}
+    )
+  end
+
   @spec call_gameserver(Session.t(), Dramaha.Play.call()) :: Dramaha.Play.t()
   def call_gameserver(session, message) do
     GenServer.call(lookup_or_configure_gameserver(session), message)
@@ -172,6 +188,52 @@ defmodule Dramaha.Sessions do
   @spec cast_gameserver(Session.t(), any()) :: :ok
   def cast_gameserver(session, message) do
     GenServer.cast(lookup_or_configure_gameserver(session), message)
+  end
+
+  @spec get_leaderboard(String.t()) :: Dramaha.Leaderboard.t()
+  def get_leaderboard(uuid) do
+    pid = lookup_or_configure_proc(uuid, Dramaha.Leaderboard)
+    GenServer.call(pid, :query_state)
+  end
+
+  @spec update_leaderboard(String.t()) :: :ok
+  def update_leaderboard(uuid) do
+    pid = lookup_or_configure_proc(uuid, Dramaha.Leaderboard)
+    GenServer.cast(pid, :update)
+  end
+
+  @spec lookup_or_configure_proc(String.t(), game_proc_type()) :: pid()
+  defp lookup_or_configure_proc(uuid, proc_module) do
+    suffix = proc_module.lookup_suffix
+    registry_key = "#{uuid}#{suffix}"
+
+    case Registry.lookup(Dramaha.PlayRegistry, registry_key) do
+      [] ->
+        session = get_session_by_uuid(uuid)
+        start_and_configure_proc(session, proc_module, suffix)
+
+      [{pid, _}] ->
+        pid
+    end
+  end
+
+  @spec start_and_configure_proc(Session.t(), game_proc_type(), String.t()) :: pid()
+  defp start_and_configure_proc(session, proc_module, suffix) do
+    case DynamicSupervisor.start_child(
+           Dramaha.PlaySupervisor,
+           {proc_module, name: via_registry(session.uuid, suffix)}
+         ) do
+      {:ok, pid} ->
+        Enum.map(proc_module.configuration_messages(session), fn
+          {:call, message} -> GenServer.call(pid, message)
+          {:cast, message} -> GenServer.cast(pid, message)
+        end)
+
+        pid
+
+      {:error, {:already_started, pid}} ->
+        pid
+    end
   end
 
   @spec lookup_or_configure_gameserver(Session.t()) :: pid()

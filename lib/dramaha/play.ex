@@ -51,6 +51,19 @@ defmodule Dramaha.Play do
           pending_quits: list({integer(), DateTime.t()})
         }
 
+  def lookup_suffix do
+    ""
+  end
+
+  def configuration_messages(session) do
+    bet_config = %Dramaha.Game.Actions.Config{
+      small_blind: session.small_blind,
+      big_blind: session.big_blind
+    }
+
+    [{:call, {:configure_session, session.uuid, bet_config, session.max_buy_in}}]
+  end
+
   @spec start_link([
           {:debug, [:log | :statistics | :trace | {any, any}]}
           | {:hibernate_after, :infinity | non_neg_integer}
@@ -117,6 +130,8 @@ defmodule Dramaha.Play do
       "#{new_player.display_name} has joined the game.",
       "Server"
     )
+
+    Sessions.update_leaderboard(play.uuid)
 
     {:reply, play, play}
   end
@@ -383,6 +398,8 @@ defmodule Dramaha.Play do
     Task.start(fn ->
       Replay.persist_session_data(post_addons)
     end)
+
+    Sessions.update_leaderboard(play.uuid)
 
     new_play
   end

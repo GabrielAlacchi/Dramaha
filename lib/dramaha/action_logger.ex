@@ -18,6 +18,14 @@ defmodule Dramaha.ActionLogger do
   @type call() :: {:configure, String.t()} | {:get_top, non_neg_integer()}
   @type cast() :: {:log, String.t(), String.t()}
 
+  def lookup_suffix do
+    "-logger"
+  end
+
+  def configuration_messages(session) do
+    [{:call, {:configure, session.uuid}}]
+  end
+
   def start_link(options) do
     GenServer.start_link(__MODULE__, %Dramaha.ActionLogger{}, options)
   end
