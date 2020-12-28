@@ -347,11 +347,6 @@ defmodule Dramaha.Game.Actions do
             end
           end)
 
-        IO.puts("[Debug Dump]")
-        IO.inspect(discards)
-        IO.inspect(replaced_cards)
-        IO.inspect(new_dealt_cards)
-
         {:ok, new_holding} = Card.list_to_holding(new_dealt_cards)
 
         player_updated_in_hand = %{
