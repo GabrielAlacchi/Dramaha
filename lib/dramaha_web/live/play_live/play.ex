@@ -36,8 +36,7 @@ defmodule DramahaWeb.PlayLive.Play do
          assign(socket, :player, player)
          |> assign(:page_title, "Play - Dramaha")
          |> assign(:session, session)
-         |> assign(:play_context, %Context{})
-         |> assign_play_state()}
+         |> assign(:play_context, %Context{})}
 
       _ ->
         {:ok, assign(socket, :player, nil)}
@@ -63,6 +62,8 @@ defmodule DramahaWeb.PlayLive.Play do
         {:noreply, push_redirect(socket, to: join_path)}
 
       _ ->
+        socket = assign_play_state(socket)
+
         if Sessions.call_gameserver(
              socket.assigns.session,
              {:has_player_quit?, socket.assigns.player.id}

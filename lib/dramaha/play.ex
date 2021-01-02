@@ -102,7 +102,9 @@ defmodule Dramaha.Play do
   end
 
   @impl true
-  def handle_call({:new_player, new_player}, _from, %{players: players} = play) do
+  def handle_call({:new_player, new_player} = msg, _from, %{players: players} = play) do
+    IO.puts("[Play] #{inspect(msg)}")
+
     # Players list should be sorted by seat ascending
     players_after =
       Enum.with_index(players) |> Enum.filter(fn {player, _} -> player.seat > new_player.seat end)
